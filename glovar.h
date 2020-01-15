@@ -8,7 +8,7 @@ extern _bootloder DiskBOOT;//指向从磁盘读取的引导扇区
 //系统基础变量
 extern unsigned char UNIT;//储存UNIT值
 extern uint16 BytePerSec;//单个扇区占用字节数
-extern uint16 RootEntCnt;//根节点最大文件数
+extern uint16 RootEntCnt;//根目录最大文件数
 extern uint32 BLOCK_SIZE;//块的大小
 extern uint32 BLOCK_GROUP_SIZE;//块组占用块数
 extern uint32 DISK_SIZE;//硬盘容量,块
@@ -19,7 +19,7 @@ extern uint32 BGSize;//块组大小，block group size
 extern uint64 DAB_0;//0号位图位置，单位块
 extern _dabmp DataBMP;//位图存储块，将磁盘的位图全部存入内存
 extern uint32 DataBMPNum;//位图数量
-//根节点
+//节点
 extern uint32 sizeLFDB;//叶节点文件描述块占用字节数
 extern uint32 sizeBFDB;//内部节点文件描述块占用字节数
 //日志块
@@ -58,8 +58,11 @@ extern uint64 end_block_group_size;			//最后的块组占的块数，单位：b
 extern char* filenamebuf;//用于储存从节点中提出的文件名，首先要初始化
 extern int fnb_p;//储存filenamebuf的有效长度
 extern FileTreeRoot _file_tree_root;//储存根节点指针
+extern uint32 _file_tree_lnode0;//文件树的第一个叶节点
 
 //基数树
 extern radix_tree_t* radix_node_ptr;//储存节点指针，内存指针存入基数树叶节点，磁盘指针作为索引
 //堆栈
 extern Stack DataBMP_Stack;//位图堆栈
+
+//文件夹

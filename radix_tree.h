@@ -1,6 +1,7 @@
 #pragma once
 #include<stdlib.h>
 #include<stdio.h>
+#define _RADIX_NDOE_PRINT	//如果定义了此宏，radix_tree_traversal()函数将向屏幕打印遍历结果
 
 #define MEMPAGE 4096
 #define INIT_POOL_SIZE (MEMPAGE*1)	//初始内存池大小

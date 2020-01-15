@@ -148,12 +148,15 @@ typedef union {
 //B+树内部节点,52kb
 #define BNODE_NUM 1401
 #define BNODE_SIZE 52*1024
+#define CHILD_TYPE_BNODE 0	//childType属性，内部节点类型
+#define CHILD_TYPE_LNODE 3	//childType属性，叶节点类型
 typedef struct BTreeNode {
 	extName name[BNODE_NUM];			//文件名描述符数组
 	uint32 child[BNODE_NUM + 1];		//子节点指针数组，可能为内部节点或叶节点，使用时，要强制转换为结点指针后使用
 	uint16 name_off[BNODE_NUM - 1];		//记录每个文件名的起始下标,从第二个文件名开始
 	uint32 parent;			//父节点指针
-	uint16 name_off_num;				//记录name_off数组的有效长度
+	uint16 name_off_num:14;				//记录name_off数组的有效长度
+	uint16 childType:2;					//子节点类型，0=内部节点，3=叶节点
 	uint16 namenum;						//记录name数组的长度
 }BTreeNode, * _btreenode, * _bn;
 
@@ -173,4 +176,5 @@ typedef struct {
 	uint32 node;
 	uint32 type;
 }FileTreeRoot;
+
 #pragma pack()

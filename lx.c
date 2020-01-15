@@ -1,4 +1,3 @@
-
 #include"lx.h"
 char* filenamebuf;
 int fnb_p = 0;
@@ -36,6 +35,7 @@ uint32 mem_lnode_num;
 uint32 mem_bnode_num;
 
 FileTreeRoot _file_tree_root;
+uint32 _file_tree_lnode0;//文件树的第一个叶节点
 
 #define MAX(a,b) ((a>b)?a:b)
 
@@ -81,7 +81,6 @@ radix_tree_t* radix_node_ptr;
 tree_error init_lx()
 {
 	uint32 i;
-	
 	DiskBOOT = (_bootloder)malloc(BOOTSIZE);
 	if (DiskBOOT == NULL)return -1;
 	readData((char*)DiskBOOT, BOOTSIZE, 0);
@@ -103,6 +102,7 @@ tree_error init_lx()
 	readData((char*)_lxinfoblock, BLOCK_SIZE, DiskBOOT->InfoBlockAddr);
 	
 	RootAddr = _lxinfoblock->ROOTNodeAddr;
+	//printf("RootAddr: %d",RootAddr);
 	
 	filenamebuf = (char*)malloc(TEXT_BUF_SIZE);
 	if (filenamebuf == NULL)return -1;
@@ -137,6 +137,7 @@ tree_error creat_tree(int todisk)
 		root->prev= _file_tree_root.node;
 	}break;
 	case CREATE_TREE_DISK: {
+		//printf("_lxinfoblock->ROOTType: %d\n",_lxinfoblock->ROOTType);
 		if (_lxinfoblock->ROOTType == LX_INFO_ROOT_TYPE_LNODE) {
 			_ln root = (_ln)malloc(sizeof(LeafNode));
 			if (root == NULL) { return -1; }
@@ -156,11 +157,39 @@ tree_error creat_tree(int todisk)
 		else return ERR_NOT_FOUND_ROOTNODE;
 	}break;
 	}
+	_ln mem_lnode0=findFirstLNode();
+	if (mem_lnode0 == NULL) return -1;
+	//disk_start_lnode = _file_tree_root.node;
+	//mem_start_lnode = diskPtr_into_LNodePtr(disk_start_lnode);
 	
-	disk_start_lnode = _file_tree_root.node;
-	mem_start_lnode = diskPtr_into_LNodePtr(disk_start_lnode);
+	//printf("size: %d\n",mem_start_lnode->finum);
 	return 0;
 }
+//通过根节点获取当前首叶节点
+_ln findFirstLNode()
+{
+	_bn bnode;
+	_ln lnode;
+	uint32 d;//储存节点磁盘地址
+
+	if (_file_tree_root.type == BNODE_TYPE) {
+		bnode = diskPtr_into_BNodePtr(_file_tree_root.node);
+		do {
+			d = bnode->child[0];
+			bnode = diskPtr_into_BNodePtr(d);
+		} while (discernNodeType((Node)bnode) == BNODE_TYPE);
+		//由于内部节点要比叶节点小，因此要重新读取lnode
+		free(bnode);//释放已经为节点分配的内存
+		radix_tree_delete(radix_node_ptr, d);//删除节点再基数树中的索引
+	}
+	else {
+		d = _file_tree_root.node;
+	}
+	_file_tree_lnode0 = d;
+	lnode = diskPtr_into_LNodePtr(d);
+	return lnode;//返回内存指针
+}
+
 
 uint32 creatLNode()
 {
@@ -196,7 +225,6 @@ tree_error insertLNode(const char* fname, int size, _fileitems fi, int fisize, u
 	}
 	int i = 0, j=0, temp=-1,p=-1, left = 0, right = 0, sret;
 	char find = FALSE;
-	/*±éÀúÊý×é£¬¼ìË÷Î»ÖÃ */
 	if (node->finum + fisize >= LNODE_NUM) {
 		
 		sret=splitLNode(disknode,node, fname, size, fisize);
@@ -205,14 +233,11 @@ tree_error insertLNode(const char* fname, int size, _fileitems fi, int fisize, u
 		return insertNode((uint32)node->parent,(uint32)NULL,BNODE_TYPE, fi, fisize, fname, size);
 	}
 	else {
-		
-		
 		if (node->finum == 0) {
 			p = 0; temp = 0;
 		}
 		else {
-			
-			temp = found_insert_pos((Node)node, fname, size);
+			temp = l_found_name_pos(node, fname, size);
 			if (temp < 0) {
 				if (temp == -1) {
 					p = 0; temp = 0;
@@ -228,13 +253,11 @@ tree_error insertLNode(const char* fname, int size, _fileitems fi, int fisize, u
 			else {
 				p = node->file_off[temp];
 			}
-			
 			for (i = node->file_off_num; i > temp; --i) {
 				node->file_off[i] = node->file_off[i - 1] + fisize;
 			}
 			node->file_off_num++;
 		}
-		
 		for (i =((int) node->finum) - 1, j = i + fisize; i >= p; --i, --j) {
 			node->fi[j] = node->fi[i];
 		}
@@ -293,9 +316,6 @@ tree_error splitLNode(uint32 disknode,_ln node,const char* insertname, int insiz
 	_ln newnode = diskPtr_into_LNodePtr(disknewnode);
 	if (newnode==NULL)return ERR_NODE_NULL;
 	int ii=i,new_i=0, new_offi = 0,off_off=0;
-	
-	
-	
 	for (j = i_off + 1, new_offi; j < node->file_off_num; ++j, new_offi++) {
 		
 		while (ii < node->file_off[j]) {
@@ -394,8 +414,6 @@ tree_error splitBNode(uint32 disknode,_bn node,const char*fname,int size)
 	return insertBNode(diskpar,NULL, &(node->name[mid]), mmid - mid, disknewnode, NULL, 0);
 }
 
-
-
 tree_error insertBNode(uint32 disknode,_bn node,_extname in, int length,uint32 child,const char *fname,int size)
 {
 	if (node == NULL) {
@@ -410,7 +428,7 @@ tree_error insertBNode(uint32 disknode,_bn node,_extname in, int length,uint32 c
 		return insertBNode(disknode,node, in, length, child, fname, size);
 	}
 	
-	int off = found_insert_pos((Node)node, fname, size),ins,i;
+	int off = b_found_name_pos(node, fname, size),ins,i;
 	if (off < 0) {
 		if (off == -1) {
 			ins = 0; off = -1;
@@ -455,6 +473,7 @@ tree_error insertBNode(uint32 disknode,_bn node,_extname in, int length,uint32 c
 	return 0;
 }
 
+//节点插入函数
 tree_error insertNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fi,int fisize,const char*fname,int size)
 {
 	if (disknode == (uint32)NULL)return ERR_NODE_NULL;
@@ -484,6 +503,157 @@ tree_error insertNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fi,in
 	return ERR_NOT_INSERT;
 }
 
+//获取指定文件描述符组文件名长度
+int getFileNameLength(_fileitems fi)
+{
+	int n = 0;
+	if (fi->ft.extnum > 0) {
+		if (!fi->ft.fatt.extname) {//扩展描述符为文件名描述符
+			n += (fi->ft.extnum - 1) * 6;
+			int i = 0;
+			while (fi[fi->ft.extnum].ft.name[i++] != '\0');
+			n += i;
+			fi = &(fi[fi->ft.extnum + 1]);
+		}
+		//扩展为文件描述符
+		if (fi->ft.extnum > 0) {
+			n += (fi->ft.extnum - 1) * 31;
+			n += fi[fi->ft.extnum].en.size;
+		}	
+	}
+	else {
+
+	}
+}
+
+//打印指定文件列表,node为指定的节点,i为该文件夹在lnode的偏移数组下标，print为操作函数，指定对提取出的字符串的处理方式
+//dpl：当前用户可访问权限
+int fileListPrint(_ln lnode,int i,char dpl)
+{
+	//node为当前节点，i为此节点中根目录的位置，str为要查找的目录名
+	//本函数从i向后查找指定的目录位置，如果遇到了不是要查找的目录，则进入该目录，然后跳过目录子项，返回下一个子项的位置
+	_ln *node=&lnode;
+	int k,p,num;
+	_fileitems fi;
+	if(i==-1){
+		fi=(*node)->fi;
+	}
+	else {
+		fi=&((*node)->fi[(*node)->file_off[i]]);
+	}
+	num=fi->ft.folder;
+	char *str;
+	for(k=0,p=++i;k<num;++k){
+		//如果此项超出当前节点的数组范围，则需要读取下一个节点
+		if (p >= (*node)->file_off_num) {//切换至下一个节点
+			if ((*node)->next == _file_tree_lnode0) {//已到尾节点，返回
+				return ERR_FIND_TO_END_LNODE;
+			}
+			*node = diskPtr_into_LNodePtr((*node)->next);
+			if (*node == NULL)return ERR_NODE_NULL;
+			p = -1;
+		}
+		//提取文件名
+		fi = &((*node)->fi[p<0?0:(*node)->file_off[p]]);
+		str=takeFileName(fi);
+		if(str==NULL)return ERR_NOT_TAKE_NAME;
+		if (fi->ft.fatt.dpl >= dpl) {
+			printf("%s\n", str);
+		}
+		if(fi->ft.fatt.en_folder==_FLODER){//此项为文件名，跳过
+			p=skip_folder(node,p,fi->ft.folder);
+			if(p<-1)return p;
+		}
+		else{
+			p++;
+		}
+	}
+	return num;
+}
+
+//跳过指定的文件名,返回下一个描述符组的下标
+int skip_folder(_ln* node, int i, int length)
+{
+	//length,要跳过的长度,i指向需要跳过的文件夹描述符
+	_fileitems fi;
+	i++; 
+	int p = 0;
+	for (; p < length; p++) {
+		if (i < 0) {
+			fi = (*node)->fi;
+		}
+		else {
+			fi = &((*node)->fi[(*node)->file_off[i]]);
+		}
+		if (fi->ft.fatt.en_folder == _FLODER) {//此项为文件夹，回调自己
+			i = skip_folder(node, i, fi->ft.folder);
+			if(i<-1)return i;
+		}
+		else {//不是文件夹，i++,如果超出数组有效值范围，使用下一个节点,i=0
+			if (i < (*node)->file_off_num)++i;
+			else {
+				//如果下一个节点为首叶节点，则返回节点错误
+				if((*node)->next==_file_tree_lnode0){
+					return ERR_NODE_DATA_FAIL;
+				}
+				(*node) = (_ln)(*node)->next;
+				//判断由于第一个描述符组不由偏移数组索引，因此需要在这里对该数组进行识别
+				fi = (*node)->fi;
+				if (fi->ft.fatt.en_folder == _FLODER) {
+					i = skip_folder(node, i, fi->ft.folder);
+				}
+				else {
+					i = 0;
+				}
+				p++;
+				if (p >= length)return -1;
+			}
+		}
+	}
+	return i;
+}
+//在遍历文件夹内容的同时执行指定的函数操作
+int tra_folder_fun(_ln* node, int i, int length, void(*fun)(_fileitems fi))
+{
+	_fileitems fi;
+	i++;
+	int p = 0;
+	for (; p < length; p++) {
+		if (i < 0) {
+			fi = (*node)->fi;
+		}
+		else {
+			fi = &((*node)->fi[(*node)->file_off[i]]);
+		}
+		fun(fi);
+		if (fi->ft.fatt.en_folder == _FLODER) {//此项为文件夹，回调自己
+			i = skip_folder(node, i, fi->ft.folder);
+			if (i < -1)return i;
+		}
+		else {//不是文件夹，i++,如果超出数组有效值范围，使用下一个节点,i=0
+			if (i < (*node)->file_off_num)++i;
+			else {
+				//如果下一个节点为首叶节点，则返回节点错误
+				if ((*node)->next == _file_tree_lnode0) {
+					return ERR_NODE_DATA_FAIL;
+				}
+				(*node) = (_ln)(*node)->next;
+				//i=0;
+				//判断由于第一个描述符组不由偏移数组索引，因此需要在这里对该数组进行识别
+				fi = (*node)->fi;
+				if (fi->ft.fatt.en_folder == _FLODER) {
+					i = skip_folder(node, i, fi->ft.folder);
+				}
+				else {
+					i = 0;
+				}
+				p++;
+				if (p >= length)return -1;
+			}
+		}
+	}
+	return i;
+}
 
 tree_error mergeLNode(uint32 diskn1,_ln n1,uint32 diskn2, _ln n2)
 {
@@ -701,8 +871,6 @@ tree_error mergeBNode(uint32 diskn1,_bn n1,uint32 diskn2, _bn n2)
 
 tree_error deleteLNode(uint32 disknode,_ln node,const char * fname,int length)
 {
-	
-	
 	if (node == NULL) {
 		node = diskPtr_into_LNodePtr(disknode);
 		if (node == NULL)return ERR_NODE_NULL;
@@ -753,7 +921,57 @@ tree_error deleteLNode(uint32 disknode,_ln node,const char * fname,int length)
 	
 	return mergeLNode(diskn1,node1,diskn2, node2);
 }
+//删除指定位置的
+//num：在偏移数组的下标
+tree_error deleteLNode_i(uint32 disknode, _ln node, int num)
+{
+	if (node == NULL) {
+		node = diskPtr_into_LNodePtr(disknode);
+		if (node == NULL)return ERR_NODE_NULL;
+	}
+	int i, pos, temp;
+	int off_pos;
+	//num = LNode_FindFileName(node, fname, length);
+	if (num == -1) { pos = 0; num = 0; }
+	else if (num < 0)return ERR_NOT_FOUND_DELFILE;
+	else { pos = node->file_off[num]; }
+	temp = LNodeFTNum(&(node->fi[pos]));
+	if (temp == -1)return ERR_NOT_DELETE_FILE;
+	node->file_off_num--;
+	if (num != node->file_off_num) {
+		//平移数组覆盖之前的值
+		for (i = pos + temp; i < node->finum; ++i) {
+			node->fi[i - temp] = node->fi[i];
+		}
+		for (i = num + 1; i < node->file_off_num; ++i) {
+			node->file_off[i - 1] = node->file_off[i] - temp;
+		}
+	}
+	node->finum -= temp;
+	if ((uint32)node->prev == _file_tree_lnode0)return 0;
+	_ln node1, node2;
+	uint32 diskn1, diskn2;
+	if (node->finum > LNODE_NUM / 4) return 0;
+	node1 = diskPtr_into_LNodePtr((uint32)node->prev);
+	node2 = diskPtr_into_LNodePtr((uint32)node->next);
+	if (node1 == NULL)return 0;
+	if (disknode != disk_start_lnode && node1->finum + node->finum < LNODE_NUM - 31) {
+		node1 = NULL;
+		node2 = node;
+		diskn1 = (uint32)node->prev;
+		diskn2 = disknode;
+	}
+	else if (node->next == disk_start_lnode)return 0;
+	else if (node2->finum + node->finum < LNODE_NUM - 31) {
+		node1 = node;
+		node2 = NULL;
+		diskn1 = disknode;
+		diskn2 = (uint32)node->next;
+	}
+	else return 0;
 
+	return mergeLNode(diskn1, node1, diskn2, node2);
+}
 
 tree_error deleteNode(uint32 disknode,Node node,uint32 nodetype, const char* str, size_t length)
 {
@@ -833,65 +1051,62 @@ tree_error textInsertBNode(const char* str,int size,_bn node,int p)
 	return TRUE;
 }
 
-
-int found_insert_pos(Node node,const char*fname,int length)
+//文件名定位，根据提供的文件名返回节点中第一个大于等于该文件名的描述符组下标，如果该文件名最大，则返回最大值
+int b_found_name_pos(_bn node,const char *fname,int length)
 {
+	char *name,cmp;
 	int i;
-	char* name;
-	char cmp_small;
-	if (discernNodeType(node)==LNODE_TYPE) {
-		name = takeFileName(&(((_ln)node)->fi[0]));
-		if (name == NULL)return -1;
-		cmp_small = cmp_str(fname, length, name, fnb_p);
-		if (cmp_small == 0)return ERR_SAME_FILE_NAME;
-		if (cmp_small == -1) {
-			return cmp_small;
-		}
-		for (i=0; i < ((_ln)node)->file_off_num; ++i) {
-			name = takeFileName(&(((_ln)node)->fi[((_ln)node)->file_off[i]]));
-			if (name == NULL)return ERR_NOT_TAKE_NAME;
-			
-			cmp_small = cmp_str(fname, length, name, fnb_p);
-			if (cmp_small == 0)return ERR_SAME_FILE_NAME;
-			if (cmp_small == -1) {
-				return i;
-			}
+	name=takeEnName(node->name);
+	if(name==NULL)return ERR_NOT_TAKE_NAME;
+	cmp=cmp_str(fname,length,name,fnb_p);
+	if(cmp==STR_SAME || cmp==LARGER_STR2){
+		return -1;
+	}
+	for(i=0;i<node->name_off_num;++i){
+		name=takeEnName(&(node->name[node->name_off[i]]));
+		if(name==NULL)return ERR_NOT_TAKE_NAME;
+		cmp=cmp_str(fname,length,name,fnb_p);
+		if(cmp==STR_SAME|| cmp==LARGER_STR2){
+			return i;
 		}
 	}
-	else {
-		name = takeEnName(&(((_bn)node)->name[0]));
-		if (name == NULL)return -1;
-		cmp_small = cmp_str(fname, length, name, fnb_p);
-		if (cmp_small == 0)return ERR_SAME_FILE_NAME;
-		if (cmp_small == -1) {
-			return cmp_small;
-		}
-		for (i = 0; i < ((_bn)node)->name_off_num; ++i) {
-			name = takeEnName(&(((_bn)node)->name[((_bn)node)->name_off[i]]));
-			if (name == NULL)return ERR_NOT_TAKE_NAME;
-			cmp_small = cmp_str(fname, length, name, fnb_p);
-			if (cmp_small == 0)return ERR_SAME_FILE_NAME;
-			if (cmp_small == -1)return i;
+	return -2;
+}	
+
+int l_found_name_pos(_ln node,const char *fname,int length)
+{
+	char *name,cmp;
+	int i;
+	name=takeFileName(node->fi);
+	if(name==NULL)return ERR_NOT_TAKE_NAME;
+	cmp=cmp_str(fname,length,name,fnb_p);
+	if(cmp==STR_SAME||cmp==LARGER_STR2){
+		return -1;
+	}
+	for(i=0;i<node->file_off_num;++i){
+		name=takeFileName(&(node->fi[node->file_off[i]]));
+		if(name==NULL)return ERR_NOT_TAKE_NAME;
+		cmp=cmp_str(fname,length,name,fnb_p);
+		if(cmp==STR_SAME|| cmp==LARGER_STR2){
+			return i;
 		}
 	}
 	return -2;
 }
-
 
 char* takeFileName(_fileitems fis)
 {
 	int i, j,t=0;
 	fnb_p = 0;
 	char noext = FALSE;
-	
 	if (!fis[0].ft.dis || fis[0].ft.fatt.isext)return NULL;
-	for (j = 0; j < FTNAME_SIZE; ++j) {
+	for (j = 0; j < FTNAME_SIZE && fis[0].ft.name[j]!='\0' ; ++j) {
 		filenamebuf[fnb_p++] = fis[0].ft.name[j];
 	}
 	if (fis[0].ft.extnum > 0) {
 		if (!fis[0].ft.fatt.extname) {
 			for (i=1; i <= fis[0].ft.extnum; ++i) {
-				for (j = 0; j < FTNAME_SIZE; ++j) {
+				for (j = 0; j < FTNAME_SIZE && fis[0].ft.name[j]!='\0' ; ++j) {
 					filenamebuf[fnb_p++] = fis[i].ft.name[j];
 				}
 			}
@@ -899,17 +1114,14 @@ char* takeFileName(_fileitems fis)
 		else {
 			i = 1;
 		}
-		
 		if ( fis[i - 1].ft.extnum > 0) {
 			t = fis[i-1].ft.extnum + i;
-			
 			if (fis[i - 1].ft.extnum< 15)noext = TRUE;
 			for (i; i < t; ++i) {
 				for (j = 0; j < fis[i].en.size; ++j) {
 					filenamebuf[fnb_p++] = fis[i].en.name[j];
 				}
 			}
-			
 			if (noext)goto exit_takename;
 			while (fis[i - 1].en.ext && !fis[i].en.dis && i < FILE_DES_NUM) {
 				for (j = 0; j < fis[i].en.size; ++j) {
@@ -920,6 +1132,7 @@ char* takeFileName(_fileitems fis)
 		}
 	}
 exit_takename:
+	filenamebuf[fnb_p]='\0';
 	return filenamebuf;
 }
 
@@ -934,23 +1147,21 @@ char* takeEnName(_extname en)
 			filenamebuf[fnb_p++] = en[i].name[j];
 		}
 	} while (en[i++].ext);
+	filenamebuf[fnb_p]='\0';
 	return filenamebuf;
 }
-
 
 int cmp_str(const char* a,int asize,const char* b, int bsize)
 {
 	int i;
 	for (i = 0; i < ((asize<bsize)?asize:bsize); ++i) {
-		if (a[i] > b[i])return 1;
-		if (a[i] < b[i])return -1;
+		if (a[i] > b[i])return LARGER_STR1;
+		if (a[i] < b[i])return LARGER_STR2;
 	}
-	if (asize > bsize)return 1;
-	else if (asize < bsize)return -1;
-	return 0;
+	if (asize > bsize)return LARGER_STR1;
+	else if (asize < bsize)return LARGER_STR2;
+	return STR_SAME;
 }
-
-
 
 int off_find(int p,uint16 off[],int left,int right)
 {
@@ -982,6 +1193,7 @@ tree_error assignTime(time_t num,_fdate fd)
 
 int creatFileDes(_fileitems fis,
 	const char fname[],
+	size_t fnlen,
 	uint64 fsize[],
 	uint32 fpos[],
 	uint32 length,
@@ -990,36 +1202,38 @@ int creatFileDes(_fileitems fis,
 	char del,
 	char en_floder
 ){
-	uint32 fnlen = strlen(fname);
+	//uint32 fnlen = strlen(fname);
 	int i, j, k,temp;
-	
 	time_t ts = time(NULL);
 	assignTime(ts, &(fis[0].ft.createdate));
 	assignTime(ts, &(fis[0].ft.lastModifiedDate));
 	assignTime(ts, &(fis[0].ft.lastVisitDate));
-	if (DiskBOOT->Unit > 8){
-		if (length > 8)length = 8;
-		
-		for (i = 0,temp=0; i < length; ++i,++temp) {
-			fis[temp].ft.offset = (fsize[i]%BLOCK_SIZE)&0xfff;
-			fis[temp].ft.position = fpos[i];
-			fis[temp].ft.size = calBlocks(fsize[i],BLOCK_SIZE);
-			++temp;
-			fis[temp].ft.offset = ((fsize[i] % BLOCK_SIZE) >> 12)&0xfff;
-			fis[temp].ft.position = 0;
-			fis[temp].ft.size = 0;
+	if (length != 0) {
+		if (DiskBOOT->Unit > 8) {
+			if (length > 8)length = 8;
+			for (i = 0, temp = 0; i < length; ++i, ++temp) {
+				fis[temp].ft.offset = (fsize[i] % BLOCK_SIZE) & 0xfff;
+				fis[temp].ft.position = fpos[i];
+				fis[temp].ft.size = calBlocks(fsize[i], BLOCK_SIZE);
+				++temp;
+				fis[temp].ft.offset = ((fsize[i] % BLOCK_SIZE) >> 12) & 0xfff;
+				fis[temp].ft.position = 0;
+				fis[temp].ft.size = 0;
+			}
 		}
+		else {
+			if (length > 16)length = 16;
+			for (i = 0; i < length; ++i) {
+				fis[i].ft.offset = (fsize[i] % BLOCK_SIZE) & 0xfff;
+				fis[i].ft.position = fpos[i];
+				fis[i].ft.size = calBlocks(fsize[i], BLOCK_SIZE);
+			}
+		}
+		temp = ((DiskBOOT->Unit > 8) ? 2 : 1)* length - 1;
 	}
 	else {
-		if (length > 16)length = 16;
-		
-		for (i = 0; i < length; ++i) {
-			fis[i].ft.offset = (fsize[i] % BLOCK_SIZE) & 0xfff;
-			fis[i].ft.position = fpos[i];
-			fis[i].ft.size = calBlocks(fsize[i], BLOCK_SIZE);
-		}
+		temp = 0;
 	}
-	temp=((DiskBOOT->Unit > 8) ? 2 : 1)* length - 1;
 	
 	for (i = 0,k=0; i < temp +1; ++i) {
 		for (j = 0; j < FTNAME_SIZE && k< fnlen; ++j) {
@@ -1107,8 +1321,45 @@ int BNode_FindFileName(_bn node, const char* fname, size_t length)
 	}
 	return -2;
 }
-
-tree_error findNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fis,const char*fname,int length)
+//从根节点开始向下寻找指定的文件描述符组，返回偏移数组下标
+//同时会修改lnode指向的节点指针，使该指针指向找到的叶节点
+tree_error findNode_i(const char* fname, int length, _ln* lnode)
+{
+	_file_tree_root.node;
+	int nodetype = _file_tree_root.type;
+	Node node = diskPtr_into_memPtr(_file_tree_root.node, nodetype);
+	int temp,fi;
+	uint32 diskptr;
+	do {
+		if (nodetype == LNODE_TYPE) {//叶节点
+			temp = LNode_FindFileName((_ln)node, fname, length);
+			if (temp < -1) return temp;
+			//fi = (temp == -1) ? 0 : (((_ln)node)->file_off[temp]);//指向找到的文件描述符下标
+			//if (fi == 0)return ERR_NOT_FOUND_FILE_NAME;
+			*lnode = (_ln)node;
+			return temp;
+		}
+		else {//内部节点
+			temp = BNodeSearchChild_i((_bn)node, fname, length);
+			if (temp < 0)return temp;
+			diskptr = ((_bn)node)->child[temp];
+			if (((_bn)node)->childType == CHILD_TYPE_LNODE) {
+				node = diskPtr_into_LNodePtr(diskptr);
+				nodetype = LNODE_TYPE;
+			}
+			else if (((_bn)node)->childType == CHILD_TYPE_BNODE) {
+				node = diskPtr_into_BNodePtr(diskptr);
+			}
+			else {//如果不是上面两个值，说明此节点可能存在错误
+				return ERR_NODE_TYPE_ERROR;
+			}
+		}
+	} while (node);
+	return ERR_NOT_FOUND_FILE_NAME;
+}
+//文件名寻找函数，负责找到文件描述符，并将其描述符填充进fis,将所处的叶节点放在lnode
+//fis应该是一个不小于FILE_DES_NUM的fileItems数组
+tree_error findNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fis,const char*fname,int length,_ln *lnode)
 {
 	if (disknode == (uint32)NULL)return ERR_NODE_NULL;
 	if (node == (Node)NULL) {
@@ -1121,22 +1372,23 @@ tree_error findNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fis,con
 			temp = LNode_FindFileName((_ln)node, fname, length);
 			if (temp < -1)return temp;
 			fi = (temp == -1) ? 0 : (((_ln)node)->file_off[temp]);
-			
 			temp = (temp == -1) ?
 				(((_ln)node)->file_off[0]) : ((temp == ((_ln)node)->file_off_num - 1) ?
 				(((_ln)node)->finum - ((_ln)node)->file_off[temp]) : (((_ln)node)->file_off[temp + 1] - ((_ln)node)->file_off[temp])
 					);
 			if (fi == 0)return ERR_NOT_FOUND_FILE_NAME;
-			for (i = 0; i < temp; ++i) {
-				fis[i] = ((_ln)node)->fi[fi++];
+			if (fis != NULL) {
+				for (i = 0; i < temp; ++i) {
+					fis[i] = ((_ln)node)->fi[fi++];
+				}
 			}
+			*lnode=(_ln)node;
 			return 0;
 		}
 		else {
 			temp = BNodeSearchChild_i((_bn)node, fname, length);
 			if (temp < 0)return temp;
 			disknode = ((_bn)node)->child[temp];
-			
 			node = diskPtr_into_memPtr(disknode, nodetype);
 			if (node == (Node)NULL)return ERR_NODE_NULL;
 			if (discernNodeType(node) != nodetype) {
@@ -1146,6 +1398,18 @@ tree_error findNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fis,con
 		}
 	} while (node);
 	return ERR_NOT_FOUND_FILE_NAME;
+}
+
+//字符串复制函数，到指定字符或者'\0'时终止，目标字符串会包含指定字符，返回复制长度
+size_t strccpy(char *destinin,char *source,int ch)
+{
+	int i=0;
+	while(source[i]!=ch && source[i]!='\0'){
+		destinin[i]=source[i];
+		i++;
+	}
+	destinin[i++]='/';
+	return i;
 }
 
 int discernNodeType(Node node)
@@ -1184,32 +1448,112 @@ uint32 findStartLNode(Node node)
 	return (uint32)NULL;
 }
 
-tree_error FileWrite(const char* filename, char* data, uint64 datasize, char dpl, char hide, char floder)
+tree_error _file_write(const char* fname, size_t namesize, char* data, uint64 datasize, char dpl, char hide)
 {
-	
-	static uint32 pos[16];
-	static uint64 fsize[16];
-	int length = diskAutoAlloc(pos, fsize, 16, datasize);
-	if (length < 0)return length;
+	uint32 pos[16];
+	uint64 fsize[16] ;
+	int length;
+	if (datasize == 0) {
+		length = 0;
+		pos[0] = 0; fsize[0] = 0;
+	}
+	else {
+		length = diskAutoAlloc(pos, fsize, 16, datasize);
+		if (length < 0)return length;
+	}
 	tree_error err;
 	fileItems fisbuf[FILE_DES_NUM];
-	err=creatFileDes(fisbuf, filename, fsize, pos, length, dpl, hide, _NO_DELETE, floder);
+	err = creatFileDes(fisbuf, fname, namesize, fsize, pos, length, dpl, hide, _NO_DELETE, _NOT_FLODER);
 	if (err < 0)return err;
-	err=insertNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, fisbuf, err, filename, strlen(filename));
+	err = insertNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, fisbuf, err, fname, namesize);
 	if (err < 0)return err;
 	for (int i = 0; i < length; ++i) {
-		writeData(pos[i]*BLOCK_SIZE, fsize[i], data);
+		writeData(pos[i] * BLOCK_SIZE, fsize[i], data);
 		data += fsize[i];
 	}
 	return 0;
 }
-
-tree_error FileClear(const char* filename)
+//向节点写入文件夹
+tree_error _folder_write(const char* path, size_t pathlength, char dpl, char hide)
 {
-	tree_error err=deleteNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, filename, strlen(filename));
+	tree_error err;
+	fileItems fis[FILE_DES_NUM];
+	err = creatFileDes(fis, path, pathlength, NULL, NULL, 0, dpl, hide, _NO_DELETE, _FLODER);
+	if (err < 0)return err;
+	err = insertNode(_file_tree_root.node, NULL, _file_tree_root.type, fis, err, path, pathlength);
 	if (err < 0)return err;
 	return 0;
 }
+
+tree_error FileWrite(const char* filename,size_t namesize, char* data, uint64 datasize, char dpl, char hide, char folder)
+{	
+	//解析文件名，参数文件名必须包含绝对路径，第一个字符必须为‘/’,如果最后一个字符是‘/’,说明要建立文件夹
+	//文件名中不能出现连续的‘/’字符
+	if (filename[0] != '/')return ERR_FILE_NAME_FORMAR_ERROR;
+	if ((filename[namesize - 1] == '/' && folder != _FLODER)
+		|| filename[namesize - 1] != '/' && folder == _FLODER)
+		return ERR_FILE_NAME_FORMAR_ERROR;
+	char* f=NULL,pf=NULL;
+	_fileitems pfi = NULL;
+	_ln node;
+	tree_error err;
+	size_t dirl;
+	filename++;//由于第一个字符肯定为‘/’，所以需要跳过该字符
+	f = filename;
+	//创建目录
+	for (;;) {
+		f = strchr(f, '/');
+		if (f == NULL) {//说明已经到最后了，此时的pf等于文件名
+			break;
+		}
+		f++;
+		dirl = f - filename;
+		err=findNode_i(filename,dirl , &node);
+		if (err == ERR_NOT_FOUND_FILE_NAME) {//未找到文件名，需要新建,同时将上层目录的folder属性加一
+			_folder_write(filename, dirl, dpl, hide);
+			//将父目录加一
+			if (pfi != NULL) {
+				pfi->ft.folder++;
+			}
+			err = findNode_i(filename, dirl, &node);
+			if (err < -1)return err;
+			pfi = &(node->fi[(err==-1)?0:node->file_off[err]]);
+		}
+		else if (err < -1)return err;
+		else 
+		pfi = &(node->fi[(err == -1) ? 0 : node->file_off[err]]);
+	}
+	//创建文件
+	err=_file_write(filename, namesize-1, data, datasize, dpl, hide);
+	if (err < 0)return err;
+	if (pfi != NULL) {
+		pfi->ft.folder++;
+	}
+	return 0;
+}
+//删除文件或文件夹
+tree_error FileClear(const char* filename)
+{
+	if (*filename != '/')return ERR_FILE_NAME_FORMAR_ERROR;
+	filename++;
+	size_t fl = strlen(filename);
+	int p;
+	_ln node;
+	if (filename[fl - 1] == '/') {//如果是目录，则在删除该目录的同时，需要删除该目录下所有文件
+		p = findNode_i(filename, fl, &node);
+		if (iserrcode(p))return p;
+		return del_folder(p, &node);
+	}
+	//文件，直接删除
+	return deleteNode(_file_tree_root.node, NULL, _file_tree_root.type, filename, fl);
+}
+//文件读取函数
+//将读取的文件内容信息存入des指向的位置
+/*tree_error FileRead(const char*filename,byte* des)
+{
+
+	return 0;
+}*/
 
 void printFileTable(_fileitems fis)
 {
@@ -1280,14 +1624,6 @@ _bootloder creatBootLoder(
 	bl->ResvdSecCnt = ResvdSecCnt;
 	bl->Resvered0 = (uint32)NULL;
 	bl->RootEntCnt = RootEntCnt;
-	/*if (TotUnit < 0x10000) {
-		bl->TotUnit16 = TotUnit;
-		bl->TotUnit32 = NULL;
-	}
-	else {
-		bl->TotUnit16 = NULL;
-		bl->TotUnit32 = TotUnit;
-	}*/
 	bl->TotUnit32 = TotUnit;
 	bl->Media = Media;
 	bl->BlockSize = Unit * BytePerSec;
@@ -1326,7 +1662,6 @@ _bootloder creatBootLoder(
 
 int init_disk(const char* fname)
 {
-	
 	strcpy(_disk_filename, fname);
 	rdisk=fopen(fname, "rb+");
 	if (rdisk == NULL)return -1;
@@ -1512,7 +1847,6 @@ int format_lx(const char* fname, int length)
 
 uint32 disk_alloc(uint32 blocks)
 {
-	
 	static uint32 start = 0;
 	uint32 databmpsize = DataBMPNum * sizeDAB * 8;
 	for (int a = 0; a < 3; ++a) {
@@ -1526,7 +1860,7 @@ uint32 disk_alloc(uint32 blocks)
 			}
 			if (i < databmpsize) {
 				setDBMPs(DataBMP, j, blocks, 1);
-				DataBMP_Stack_Push((j / 8) / sizeDAB);
+				DataBMP_Stack_Push((j / 8) / sizeDAB);//将被改动的位图加入堆栈
 				start = i;
 				return j;
 			}
@@ -1571,29 +1905,6 @@ int diskAutoAlloc(uint32 diskptr[], uint64 size[], int length, long datasize)
 	return i;
 }
 
-/*uint32 write_disk(char* src, uint32 length, uint32 blockAddr)
-{
-	
-	uint32 i = 0, j, bits = DataBMPNum * sizeDAB * 8, blocks = length / BLOCK_SIZE + (length % BLOCK_SIZE > 0 ? 1 : 0);
-	if (blockAddr == (uint32)NULL) {
-		j = disk_alloc(blocks);
-	}
-	else {
-		i = blockAddr;
-		while (!outBitType(DataBMP, i) && i < bits && i - blockAddr < blocks)i++;
-		if (i == blockAddr || i - blockAddr < blocks)return -1;
-		j = blockAddr;
-	}
-	if (i < bits) {
-		writeData(j * BLOCK_SIZE, length, src);
-		
-		setDBMPs(DataBMP, j, blocks, 1);
-		writeData(((j / BLOCK_GROUP_SIZE + 1) * BLOCK_GROUP_SIZE - 1) * sizeDAB, sizeDAB, &(DataBMP[j / BLOCK_GROUP_SIZE]));
-		return j;
-	}
-	return -1;
-}*/
-
 uint32 readData(char* des, uint32 length, uint32 blockAddr)
 {
 	unsigned int i;
@@ -1634,7 +1945,7 @@ int creatRootFile()
 	uint64 fsize[16];
 	int length = diskAutoAlloc(fpos, fsize, 16, fssize);
 	fileItems fisbuf[FILE_DES_NUM];
-	int temp = creatFileDes(fisbuf, _ROOTFILENAME, fsize, fpos, length, 0, 0, 0, 0);
+	int temp = creatFileDes(fisbuf, _ROOTFILENAME, sizeof(_ROOTFILENAME) ,fsize, fpos, length, 0, 0, 0, 0);
 	if (temp < 0)return temp;
 	
 	_ln root = (_ln)malloc(sizeof(LeafNode));
@@ -1684,15 +1995,14 @@ tree_error allNodeOutDisk()
 	radix_tree_traversal_fun(radix_node_ptr,_all_BNode_Out_Disk);
 	if (_file_tree_root.type == BNODE_TYPE) {
 		writeData(_lxinfoblock->ROOTNodeBackup * BLOCK_SIZE, sizeof(BTreeNode), diskPtr_into_BNodePtr(_file_tree_root.node));
-		printf(">>write ROOT by BNODE: blockADDR:%d,disknode:%d\n",_lxinfoblock->ROOTNodeBackup,_file_tree_root.node);
+		//printf(">>write ROOT by BNODE: backupADDR:%d,disknode:%d\n",_lxinfoblock->ROOTNodeBackup,_file_tree_root.node);
 	}
 	else {
-		
 		writeData(_lxinfoblock->ROOTNodeBackup * BLOCK_SIZE, sizeof(LeafNode), diskPtr_into_LNodePtr(_file_tree_root.node));
-		printf(">>write ROOT by LNODE: blockADDR:%d,disknode:%d\n",_lxinfoblock->ROOTNodeBackup,_file_tree_root.node);
+		//printf(">>write ROOT by LNODE: backupADDR:%d,disknode:%d\n",_lxinfoblock->ROOTNodeBackup,_file_tree_root.node);
 	}
 	if (_lxinfoblock->ROOTNodeAddr != _file_tree_root.node) {
-		printf(">>write lx_info_block\n");
+		//printf(">>write lx_info_block\n");
 		_lxinfoblock->ROOTNodeAddr = _file_tree_root.node;
 		if (_file_tree_root.type == BNODE_TYPE) {
 			_lxinfoblock->ROOTType = LX_INFO_ROOT_TYPE_BNODE;
@@ -1765,31 +2075,9 @@ _ln diskPtr_into_LNodePtr(uint32 diskptr)
 	return node;
 }
 
-/*void _print_radix_path_value(radix_node_t* node)
+int printRadixPathValue()
 {
-	static uint64 nodeaddr;
-	static int i = 0;
-	if (node == NULL)return;
-	if (node->value != (uint32)NULL) {
-		printf("memory:%x----disk:%x\n", node->value, nodeaddr);
-	}
-	nodeaddr = setValueBit(nodeaddr, i, 0); i++;
-	_all_BNode_Out_Disk(node->child[0]);
-	i--;
-	nodeaddr = setValueBit(nodeaddr, i, 1); i++;
-	_all_BNode_Out_Disk(node->child[1]);
-	i--;
-	nodeaddr = setValueBit(nodeaddr, i, 2); i++;
-	_all_BNode_Out_Disk(node->child[2]);
-	i--;
-	nodeaddr = setValueBit(nodeaddr, i, 3); i++;
-	_all_BNode_Out_Disk(node->child[3]);
-	i--;
-}
-*/
-void printRadixPathValue()
-{
-	radix_tree_traversal(radix_node_ptr);
+	return radix_tree_traversal(radix_node_ptr);
 }
 
 int writeDataBMP()
@@ -1797,6 +2085,7 @@ int writeDataBMP()
 	uint64 start = (BLOCK_GROUP_SIZE - 1) * BLOCK_SIZE;
 	uint64 temp = BLOCK_GROUP_SIZE * BLOCK_SIZE;
 	uint32 a;
+	//将被修改过的位图写入磁盘
 	for (; DataBMP_Stack_sp > 0; DataBMP_Stack_sp--) {
 		a = S_Pop(DataBMP_Stack);
 		writeData(start + a * temp, sizeDAB, DataBMP + a * sizeDAB);
@@ -1806,18 +2095,88 @@ int writeDataBMP()
 
 tree_error DataBMP_Stack_Push(uint32 n)
 {
-	
 	int err = S_FindStack((S_ElementType)n, DataBMP_Stack);
 	if (err == ERR_NOT_FOUND_NUM_IN_STACK) {
 		S_Push(DataBMP_Stack, (S_ElementType)n); DataBMP_Stack_sp++;
 	}
 	return 0;
 }
-
+//将所有在内存中被修改的节点回写磁盘
+//如果主函数在操执行中修改了节点，应该退出时使用此函数，否则没有必要使用
 int flushDiskCache()
 {
-	void printRadixPathValue();
-	allNodeOutDisk();
+	int a=printRadixPathValue();
+	if(a>0)allNodeOutDisk();
 	writeDataBMP();
 	return 0;
+}
+
+//读取根文件目录列表
+//fun：根目录名处理函数，此函数不可以操作文件节点，否则会造成节点出错
+//每次会将一条文件名作为参数传进fun中。
+tree_error findRootDir(void(*fun)(char* str))
+{
+	int i, off, p = -1;
+	char* fstr;
+	_ln lnode = diskPtr_into_LNodePtr(_file_tree_lnode0);//获取首叶节点地址
+	for (i = 0; i < RootEntCnt; ++i) {
+		if (p >= lnode->file_off_num) {//索引超过当前偏移数组，更换下一个节点
+			if (lnode->next == _file_tree_lnode0)return 0;//查找完成
+			lnode = diskPtr_into_LNodePtr(lnode->next);//获取下一个节点的内存地址
+			p = -1;
+		}
+		if (p == -1) {
+			off = 0;
+		}
+		else off = lnode->file_off[p];
+		fstr = takeFileName(&(lnode->fi[off]));
+		if (fstr == NULL)return ERR_NOT_TAKE_NAME;
+		//printf("%d:\t%s\n", i + 1, fstr);
+		fun(fstr);
+		if (lnode->fi[off].ft.fatt.en_folder == _FLODER) {//当前描述符组为目录，跳过
+			p = skip_folder(&lnode, p, lnode->fi[off].ft.folder);
+			if (p < -1)return p;
+		}
+		else {
+			p++;
+		}
+	}
+	return 0;
+}
+
+//删除指定文件夹下的内容
+//off为偏移数组下标，指向要删除的文件夹描述符，node为该文件夹描述符所在节点的指针的指针，操作过程可能会修改node
+///off应当大于等于-1
+tree_error del_folder(int off,_ln *node)
+{
+	if (off < -1)return off;
+	int i = off < 0 ? 0 : (*node)->file_off[off];//保存偏移数组下标
+	int num =(*node)->fi[i].ft.folder,temp;
+	int j,p=off+1;//p指向该文件夹内容项
+	for (j = 0; j < num; ++j) {//逐个删除
+		if (p >= (*node)->file_off_num) {//索引超过当前偏移数组，更换下一个节点
+			if ((*node)->next == _file_tree_lnode0)return 0;//查找完成
+			*node = diskPtr_into_LNodePtr((*node)->next);//获取下一个节点的内存地址
+			if (*node == NULL)return ERR_NODE_NULL;
+			p = -1;
+		}
+		//修正偏移数组下标
+		if (p == -1) {
+			i = 0;
+		}
+		else i = (*node)->file_off[p];
+		//如果此项为文件夹，则回调本函数，进行删除
+		if ((*node)->fi[i].ft.fatt.en_folder == _FLODER) {
+			p=del_folder(p, node);
+			if (p < -1)return p;
+		}
+		else {//如果是文件,则直接调用删除函数，删除该描述符
+			temp=deleteLNode_i(NULL, *node, p);
+			if (iserrcode(temp)) return temp;
+		}
+	}
+	//上面的代码完成了文件夹内容的删除，最后要做的就是删除文件夹的描述符
+	temp=deleteLNode_i(NULL, *node, off);
+	if (iserrcode(temp))return temp;
+	return p;//返回删除后下标
 }

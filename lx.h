@@ -1,6 +1,9 @@
 #pragma once
+#define _CRT_SECURE_NO_WARNINGS
+
 #include<stdlib.h>
 #include<string.h>
+#include<stdio.h>
 #include<time.h>
 #include"lxerror.h"
 #include"lxstruct.h"
@@ -51,6 +54,13 @@ typedef unsigned int Node;//节点指针
 #define _FLODER 1
 #define _NOT_FLODER 0
 
+//字符串复制函数，到指定字符或者'\0'时终止，目标字符串会包含指定字符，返回复制长度
+size_t strccpy(char *destinin,char *source,int ch);
+
+//打印指定文件列表,node为指定的节点,i为该文件夹在lnode的偏移数组下标，print为操作函数，指定对提取出的字符串的处理方式
+int fileListPrint(_ln lnode,int i,char dpl);
+//跳过指定的文件名,返回下一个描述符组的下标
+int skip_folder(_ln* node, int i, int length);
 //初始化文件系统
 //方法：读取boot信息，为文件系统所需变量赋值
 tree_error init_lx();
@@ -86,12 +96,15 @@ int LNodeFTNum(_fileitems fi);
 //str：文件名;size：文件名长度；node：内部节点；p：插入位置
 tree_error textInsertBNode(const char* str, int size, _bn node, int p);
 //寻找描述符插入位置，返回该位置在off数组的下标
-int found_insert_pos(Node node, const char* fname, int length);
+//int found_insert_pos(Node node, const char* fname, int length);
 //从叶节点指定位置提取文件名
 char* takeFileName(_fileitems fis);
 //从内部节点提取文件名
 char* takeEnName(_extname en);
 //文件名比较函数
+#define LARGER_STR1 1		//第一个字符串大
+#define LARGER_STR2 -1		//第二个字符串大
+#define STR_SAME 0		//两个字符串相同
 int cmp_str(const char* a, int asize, const char* b, int bsize);
 //在节点的off数组中寻找指定值的下标，算法：折半查找
 //p：带查找值；off：数组；left：左边界；right：右边界
@@ -99,6 +112,7 @@ int off_find(int p, uint16 off[], int left, int right);
 //创建文件描述符组
 int creatFileDes(_fileitems fis,//一个用于储存的文件描述符组指针
 	const char fname[],//文件名
+	size_t fnlen,//文件名长度
 	uint64 fsize[],//文件块长度数组
 	uint32 fpos[],//文件位置数组
 	uint32 length,//fsize,fpos,offset数组长度,这三个数组要拥有相同的数量
@@ -115,7 +129,10 @@ int LNode_FindFileName(_ln node, const char* str, int length);
 //在内部节点查找，返回文件描述符组下标
 int BNode_FindFileName(_bn node, const char* fname, size_t length);
 //节点查找
-tree_error findNode(uint32 disknode, Node node, uint32 nodetype, _fileitems fis, const char* fname, int length);
+tree_error findNode(uint32 disknode,Node node,uint32 nodetype,_fileitems fis,const char*fname,int length,_ln *lnode);
+//从根节点开始向下寻找指定的文件描述符组，并返回偏移数组下标
+//同时会修改lnode指向的节点指针，使该指针指向找到的叶节点
+tree_error findNode_i(const char* fname, int length, _ln* lnode);
 //返回节点的类型
 int discernNodeType(Node node);
 //返回子节点下标
@@ -123,7 +140,7 @@ int BNodeSearchChild_i(_bn node, const char* str, size_t length);
 //在树中寻找首节点地址（即所有值最小的节点，根据分裂的规则，首节点的地址一旦确定便不会改变）
 uint32 findStartLNode(Node node);
 //文件写入函数
-tree_error FileWrite(const char* filename, char* data, uint64 datasize, char dpl, char hide, char floder);
+tree_error FileWrite(const char* filename, size_t namesize, char* data, uint64 datasize, char dpl, char hide, char folder);
 //文件删除函数
 tree_error FileClear(const char* filename);
 //打印文件描述符组描述的内容
@@ -205,10 +222,6 @@ int init_format();
 //对指定镜像进行使用lx文件系统格式化
 int format_lx(const char* fname, int length);
 
-//硬盘写入函数
-//自动寻找可以写入的块，同时修正位图
-//src：源地址；length：写入长度，单位字节；blockAddr：写入地址
-uint32 write_disk(char* src, uint32 length, uint32 blockAddr);
 //关闭文件系统=》释放镜像文件指针，内存
 uint32 closeLX();
 int creatRootFile();
@@ -245,3 +258,8 @@ tree_error DataBMP_Stack_Push(uint32 n);
 int writeDataBMP();
 //刷新磁盘缓存，将节点回写磁盘
 int flushDiskCache();
+//删除指定文件夹下的内容
+//off_i指向要删除的目录，如果想要通过文件夹名来索引，则设定为NULL
+tree_error del_folder(int off, _ln* node);
+//通过根节点获取当前首叶节点
+_ln findFirstLNode();

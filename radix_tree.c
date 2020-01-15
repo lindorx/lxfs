@@ -235,7 +235,9 @@ int radix_tree_traversal(radix_tree_t* t)
 	int i = 0;
 	radix_leafnode_t* temp = last_leafnode,*node=last_leafnode;
 	do {
+#ifdef _RADIX_NDOE_PRINT
 		printf("key:%x, value:%x\n", node->key, node->value);
+#endif
 		node = node->next;
 		i++;
 	} while (node != temp);
@@ -248,7 +250,7 @@ int radix_tree_traversal_fun(radix_tree_t* t, void(*fun)(uint32,uint32))
 	int i = 0;
 	radix_leafnode_t* temp = last_leafnode, * node = last_leafnode;
 	do {
-		printf("key:%x, value:%x\n", node->key, node->value);
+		//printf("key:%x, value:%x\n", node->key, node->value);
 		fun(node->key,node->value);
 		node = node->next;
 		i++;

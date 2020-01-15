@@ -5,12 +5,16 @@ typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long uint64;
 typedef unsigned char uint8;
+typedef uint32 ptr_t;
 
 #ifndef NULL
 #define NULL 0
 #endif
 #define TRUE 1
 #define FALSE 0
+
+#define ERR_CODE_BASE -16	//错误代码起始值，所有错误代码应小于等于此值
+#define iserrcode(e) ((e)<=ERR_CODE_BASE?TRUE:FALSE)		//e是错误码，则返回ture，否则返回false
 //文件函数错误代码
 #define ERR_NODE_NULL -16			//节点指针为空  
 #define ERR_SAME_FILE_NAME -17		//文件名相同冲突
@@ -40,7 +44,9 @@ typedef unsigned char uint8;
 #define ERR_NODE_NOT_IN_MEM -41				//节点不在内存中
 #define ERR_NODE_TYPE_ERROR -42				//节点类型判断出错
 #define ERR_NOT_FOUND_SPACE_IN_DISK -43		//没有在磁盘中找到合适的储存位置
-
+#define ERR_NODE_DATA_FAIL -44		//节点的数据可能出错
+#define ERR_FILE_NAME_FORMAR_ERROR -45	//文件名格式错误
+#define ERR_FIND_TO_END_LNODE -46		//已到最后一个叶节点
 //错误号对应的字符串
 typedef struct errString {
 	tree_error ernum;
