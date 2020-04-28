@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #define _CRT_SECURE_NO_WARNINGS
 
 #include<stdlib.h>
@@ -145,6 +145,10 @@ tree_error FileWrite(const char* filename, size_t namesize, char* data, uint64 d
 tree_error FileClear(const char* filename);
 //打印文件描述符组描述的内容
 void printFileTable(_fileitems fis);
+//读取根文件目录列表
+//fun：根目录名处理函数，此函数不可以操作文件节点，否则会造成节点出错
+//每次会将一条文件名作为参数传进fun中。
+tree_error findRootDir(int(*fun)(const char* str));
 
 #ifndef DISK_H
 #define DISK_H
@@ -251,7 +255,7 @@ _ln diskPtr_into_LNodePtr(uint32 diskptr);
 //length：diskptr和size数组的长度，两个数组应该一样大
 //datasize：要分配的数据块占用字节数
 //返回数组有效元素数量
-int diskAutoAlloc(uint32 diskptr[], uint64 size[], int length, long datasize);
+int diskAutoAlloc(uint32 diskptr[], uint64 size[], uint32 length, long datasize);
 //位图占用堆栈进栈操作，n:发生修改的位图块
 tree_error DataBMP_Stack_Push(uint32 n);
 //位图回写，将DataBMP回写进磁盘，返回位图占用的块数
@@ -263,3 +267,7 @@ int flushDiskCache();
 tree_error del_folder(int off, _ln* node);
 //通过根节点获取当前首叶节点
 _ln findFirstLNode();
+int l_found_name_pos(_ln node,const char *fname,int length);
+
+//文件名定位，根据提供的文件名返回节点中第一个大于等于该文件名的描述符组下标，如果该文件名最大，则返回最大值
+int b_found_name_pos(_bn node,const char *fname,int length);

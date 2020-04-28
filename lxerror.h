@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 typedef int tree_error;//错误类型
 typedef unsigned char byte;
 typedef unsigned short uint16;

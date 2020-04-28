@@ -1,10 +1,10 @@
 #include"radix_tree.h"
 static radix_leafnode_t* last_leafnode;
-static int radix_tree_height = sizeof(ptr_t) * 8 / BITS;
-//å†…å­˜æ± æ‰©å¤§å‡½æ•°ï¼Œnumï¼šæ–°å†…å­˜æ± çš„å¤§å°ï¼Œ=-1ä½¿ç”¨é»˜è®¤å€¼,å•ä½ï¼šé¡µ
+static int radix_tree_height = sizeof(ptr_t)* 8 / BITS;
+//ÄÚ´æ³ØÀ©´óº¯Êı£¬num£ºĞÂÄÚ´æ³ØµÄ´óĞ¡£¬=-1Ê¹ÓÃÄ¬ÈÏÖµ,µ¥Î»£ºÒ³
 pool_t get_new_pool(radix_tree_t*t, int num)
 {
-	if (num <=0 )num = INIT_POOL_SIZE;
+	if (num <= 0)num = INIT_POOL_SIZE;
 	else num *= MEMPAGE;
 	pool_t pool = (pool_t)malloc(num);
 	if (pool == NULL)return NULL;
@@ -13,22 +13,22 @@ pool_t get_new_pool(radix_tree_t*t, int num)
 	t->pool->next->prev = pool;
 	t->pool->next = pool;
 	t->pool = pool;
-	//æ ¼å¼åŒ–ï¼Œå°†ç”³è¯·çš„å†…å­˜å…¨éƒ¨è®¾ç½®ä¸ºèŠ‚ç‚¹
-	radix_node_t * node=(radix_node_t*)((char*)pool + sizeof(radix_pool));
-	int i;
+	//¸ñÊ½»¯£¬½«ÉêÇëµÄÄÚ´æÈ«²¿ÉèÖÃÎª½Úµã
+	radix_node_t * node = (radix_node_t*)((char*)pool + sizeof(radix_pool));
+	uint32 i;
 	for (i = 0; i < (num - sizeof(radix_pool)-1) / sizeof(radix_node_t); ++i) {
 		node[i].parent = &(node[i + 1]);
 	}
 	node[i++].parent = NULL;
 	t->free = node;
-	pool->start = (char*)((char*)node+sizeof(radix_node_t)*i);
-	pool->size =  num-sizeof(radix_node_t)*i-sizeof(radix_pool);
+	pool->start = (char*)((char*)node + sizeof(radix_node_t)*i);
+	pool->size = num - sizeof(radix_node_t)*i - sizeof(radix_pool);
 	return pool;
 }
 
 pool_t get_new_leafpool(radix_tree_t* t, int num)
 {
-	if (num <=0)num = INIT_POOL_SIZE;
+	if (num <= 0)num = INIT_POOL_SIZE;
 	else { num *= MEMPAGE; }
 	pool_t leafpool = (pool_t)malloc(num);
 	if (leafpool == NULL)return NULL;
@@ -38,14 +38,14 @@ pool_t get_new_leafpool(radix_tree_t* t, int num)
 	t->leafpool->next = leafpool;
 	t->leafpool = leafpool;
 	radix_leafnode_t* node = (radix_leafnode_t*)((char*)leafpool + sizeof(radix_pool));
-	int i;
-	for (i = 0; i < (num - sizeof(radix_pool) - 1) / sizeof(radix_leafnode_t); ++i) {
+	uint32 i;
+	for (i = 0; i < (num - sizeof(radix_pool)-1) / sizeof(radix_leafnode_t); ++i) {
 		node[i].next = &(node[i + 1]);
 	}
 	node[i++].next = NULL;
 	t->lfree = node;
-	leafpool->start = (char*)((char*)node + sizeof(radix_leafnode_t) * i);
-	leafpool->size = num - sizeof(radix_leafnode_t) * i - sizeof(radix_pool);
+	leafpool->start = (char*)((char*)node + sizeof(radix_leafnode_t)* i);
+	leafpool->size = num - sizeof(radix_leafnode_t)* i - sizeof(radix_pool);
 	return leafpool;
 }
 
@@ -76,19 +76,19 @@ radix_leafnode_t* radix_leafnode_alloc(radix_tree_t* t)
 	return node;
 }
 
-//åˆ›å»ºä¸€ä¸ªèŠ‚ç‚¹ï¼Œä»å†…å­˜æ± ä¸­å–å‡ºå¯ä»¥ä½¿ç”¨çš„èŠ‚ç‚¹
+//´´½¨Ò»¸ö½Úµã£¬´ÓÄÚ´æ³ØÖĞÈ¡³ö¿ÉÒÔÊ¹ÓÃµÄ½Úµã
 radix_node_t* radix_node_alloc(radix_tree_t* t)
 {
 	radix_node_t* node;
-	if (t->free != NULL) {//ä»freeä¸­æå–èŠ‚ç‚¹
+	if (t->free != NULL) {//´ÓfreeÖĞÌáÈ¡½Úµã
 		node = t->free;
 		t->free = node->parent;
 	}
-	else {//åœ¨å†…å­˜æ± ä¸­å¯»æ‰¾å¯ä»¥ä½¿ç”¨çš„å†…å­˜
-		if (t->pool->size < sizeof(radix_node_t)) {//å¦‚æœå‰©ä½™ç©ºé—´ä¸å¤Ÿåˆ†é…ï¼Œåˆ™é‡æ–°åˆ†é…
+	else {//ÔÚÄÚ´æ³ØÖĞÑ°ÕÒ¿ÉÒÔÊ¹ÓÃµÄÄÚ´æ
+		if (t->pool->size < sizeof(radix_node_t)) {//Èç¹ûÊ£Óà¿Õ¼ä²»¹»·ÖÅä£¬ÔòÖØĞÂ·ÖÅä
 			get_new_pool(t, -1);
 		}
-		if (t->free != NULL) {//ä»freeä¸­æå–èŠ‚ç‚¹
+		if (t->free != NULL) {//´ÓfreeÖĞÌáÈ¡½Úµã
 			node = t->free;
 			t->free = node->parent;
 		}
@@ -105,7 +105,7 @@ radix_node_t* radix_node_alloc(radix_tree_t* t)
 	node->parent = NULL;
 	return node;
 }
-//åˆ›å»ºç®¡ç†ç»“æ„
+//´´½¨¹ÜÀí½á¹¹
 radix_tree_t* radix_tree_create()
 {
 	int i;
@@ -119,7 +119,7 @@ radix_tree_t* radix_tree_create()
 	radix_node_t* node = (radix_node_t*)((char*)tree->pool + sizeof(radix_pool));
 	tree->pool->next = tree->pool;
 	tree->pool->prev = tree->pool;
-	for (i = 1; i < (INIT_POOL_SIZE - sizeof(radix_pool) - 1) / sizeof(radix_node_t); ++i) {
+	for (i = 1; i < (INIT_POOL_SIZE - sizeof(radix_pool)-1) / sizeof(radix_node_t); ++i) {
 		node[i].parent = &node[i + 1];
 	}
 	node[i++].parent = NULL;
@@ -129,13 +129,13 @@ radix_tree_t* radix_tree_create()
 	node[0].child[3] = NULL;
 	node[0].parent = NULL;
 	i *= sizeof(radix_node_t);
-	tree->pool->start = ((char*)node +i);
-	tree->pool->size = INIT_POOL_SIZE - sizeof(radix_pool) - i;
-	//å¶èŠ‚ç‚¹
-	radix_leafnode_t* lnode= (radix_leafnode_t*)((char*)tree->leafpool + sizeof(radix_pool));
+	tree->pool->start = ((char*)node + i);
+	tree->pool->size = INIT_POOL_SIZE - sizeof(radix_pool)-i;
+	//Ò¶½Úµã
+	radix_leafnode_t* lnode = (radix_leafnode_t*)((char*)tree->leafpool + sizeof(radix_pool));
 	tree->leafpool->next = tree->leafpool;
 	tree->leafpool->prev = tree->leafpool;
-	for (i = 1; i < (INIT_POOL_SIZE - sizeof(radix_pool) - 1) / sizeof(radix_leafnode_t); ++i) {
+	for (i = 1; i < (INIT_POOL_SIZE - sizeof(radix_pool)-1) / sizeof(radix_leafnode_t); ++i) {
 		lnode[i].next = &(lnode[i + 1]);
 	}
 	lnode[i++].next = NULL;
@@ -145,25 +145,25 @@ radix_tree_t* radix_tree_create()
 	last_leafnode = lnode;
 	i *= sizeof(radix_leafnode_t);
 	tree->leafpool->start = ((char*)lnode + i);
-	tree->leafpool->size = INIT_POOL_SIZE - sizeof(radix_pool) - i;
+	tree->leafpool->size = INIT_POOL_SIZE - sizeof(radix_pool)-i;
 	tree->free = &node[1];
 	tree->lfree = &lnode[1];
 	tree->root = node;
 	return tree;
 }
 
-//æ’å…¥
+//²åÈë
 int radix_tree_insert(radix_tree_t* t, uint32 key, ptr_t value)
 {
 	int i, temp;
-	radix_node_t* node, * child;
+	radix_node_t* node, *child;
 	radix_leafnode_t* lnode;
 	node = t->root;
-	for (i = 0; i < radix_tree_height-1; i++) {
+	for (i = 0; i < radix_tree_height - 1; i++) {
 		temp = CHECK_BITS(key, i);
 		if (!node->child[temp]) {
 			child = radix_node_alloc(t);
-			if (child==NULL)return -1;
+			if (child == NULL)return -1;
 			child->parent = node;
 			node->child[temp] = child;
 			node = node->child[temp];
@@ -181,7 +181,7 @@ int radix_tree_insert(radix_tree_t* t, uint32 key, ptr_t value)
 	lnode->next = last_leafnode->next;
 	last_leafnode->next = lnode;
 	last_leafnode = lnode;
-	node->child[temp] =(radix_node_t*) lnode;
+	node->child[temp] = (radix_node_t*)lnode;
 	if (lnode->value == value)return RADIX_INSERT_VALUE_SAME;
 	if (lnode->value != (ptr_t)NULL)return RADIX_INSERT_VALUE_OCCUPY;
 	lnode->value = value;
@@ -189,10 +189,10 @@ int radix_tree_insert(radix_tree_t* t, uint32 key, ptr_t value)
 	return 0;
 }
 
-//ç”±äºæ’å…¥æ—¶ä¼šåˆ›å»ºå¾ˆå¤šèŠ‚ç‚¹ï¼Œä¸ºäº†æé«˜é€Ÿåº¦è¿™é‡Œåªä¼šåˆ é™¤æœ€åº•å±‚çš„æŒ‡å®šèŠ‚ç‚¹
+//ÓÉÓÚ²åÈëÊ±»á´´½¨ºÜ¶à½Úµã£¬ÎªÁËÌá¸ßËÙ¶ÈÕâÀïÖ»»áÉ¾³ı×îµ×²ãµÄÖ¸¶¨½Úµã
 int radix_tree_delete(radix_tree_t* t, uint32 key)
 {
-	radix_node_t* node = t->root, * par;
+	radix_node_t* node = t->root;
 	int i = 0, temp = 0;
 	for (i = 0; i < radix_tree_height - 1; ++i) {
 		temp = CHECK_BITS(key, i);
@@ -204,14 +204,14 @@ int radix_tree_delete(radix_tree_t* t, uint32 key)
 	lnode = (radix_leafnode_t*)node->child[temp];
 	if (lnode == NULL)return RADIX_DELETE_ERROR;
 	node->child[temp] = NULL;
-	//å°†lnodeå›å½’å†…å­˜æ± 
+	//½«lnode»Ø¹éÄÚ´æ³Ø
 	lnode->next = t->lfree->next;
 	t->lfree->next = lnode;
 	return 0;
 }
 
-//èŠ‚ç‚¹æŸ¥æ‰¾å‡½æ•°
-//keyä¸ºç´¢å¼•ï¼Œè¿”å›å¶èŠ‚ç‚¹è¢«æŸ¥æ‰¾åˆ°çš„å€¼
+//½Úµã²éÕÒº¯Êı
+//keyÎªË÷Òı£¬·µ»ØÒ¶½Úµã±»²éÕÒµ½µÄÖµ
 ptr_t radix_tree_find(radix_tree_t* t, uint32 key)
 {
 	int i = 0, temp;
@@ -229,11 +229,11 @@ ptr_t radix_tree_find(radix_tree_t* t, uint32 key)
 	return lnode->value;
 }
 
-//éå†å¶èŠ‚ç‚¹ï¼Œè¿”å›å¶èŠ‚ç‚¹æ•°é‡
+//±éÀúÒ¶½Úµã£¬·µ»ØÒ¶½ÚµãÊıÁ¿
 int radix_tree_traversal(radix_tree_t* t)
 {
 	int i = 0;
-	radix_leafnode_t* temp = last_leafnode,*node=last_leafnode;
+	radix_leafnode_t* temp = last_leafnode, *node = last_leafnode;
 	do {
 #ifdef _RADIX_NDOE_PRINT
 		printf("key:%x, value:%x\n", node->key, node->value);
@@ -244,14 +244,14 @@ int radix_tree_traversal(radix_tree_t* t)
 	return i;
 }
 
-//éå†å¶èŠ‚ç‚¹ï¼Œå¯ä»¥ä¼ å…¥ä¸€ä¸ªå‡½æ•°è¿›è¡Œå¤„ç†
-int radix_tree_traversal_fun(radix_tree_t* t, void(*fun)(uint32,uint32))
+//±éÀúÒ¶½Úµã£¬¿ÉÒÔ´«ÈëÒ»¸öº¯Êı½øĞĞ´¦Àí
+int radix_tree_traversal_fun(radix_tree_t* t, void(*fun)(uint32, uint32))
 {
 	int i = 0;
-	radix_leafnode_t* temp = last_leafnode, * node = last_leafnode;
+	radix_leafnode_t* temp = last_leafnode, *node = last_leafnode;
 	do {
 		//printf("key:%x, value:%x\n", node->key, node->value);
-		fun(node->key,node->value);
+		fun(node->key, node->value);
 		node = node->next;
 		i++;
 	} while (node != temp);

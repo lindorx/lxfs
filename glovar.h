@@ -3,66 +3,66 @@
 #include"lxstruct.h"
 #include"radix_tree.h"
 #include"stack.h"
-//å…¨å±€å˜é‡å¤´æ–‡ä»¶
-extern _bootloder DiskBOOT;//æŒ‡å‘ä»ç£ç›˜è¯»å–çš„å¼•å¯¼æ‰‡åŒº
-//ç³»ç»ŸåŸºç¡€å˜é‡
-extern unsigned char UNIT;//å‚¨å­˜UNITå€¼
-extern uint16 BytePerSec;//å•ä¸ªæ‰‡åŒºå ç”¨å­—èŠ‚æ•°
-extern uint16 RootEntCnt;//æ ¹ç›®å½•æœ€å¤§æ–‡ä»¶æ•°
-extern uint32 BLOCK_SIZE;//å—çš„å¤§å°
-extern uint32 BLOCK_GROUP_SIZE;//å—ç»„å ç”¨å—æ•°
-extern uint32 DISK_SIZE;//ç¡¬ç›˜å®¹é‡,å—
-extern uint64 DISK_SIZE_BYTES;//ç¡¬ç›˜å®¹é‡ï¼šå­—èŠ‚
-//æ•°æ®ä½å›¾
-extern uint32 sizeDAB;//æ•°æ®ä½å›¾å ç”¨å­—èŠ‚æ•°
-extern uint32 BGSize;//å—ç»„å¤§å°ï¼Œblock group size
-extern uint64 DAB_0;//0å·ä½å›¾ä½ç½®ï¼Œå•ä½å—
-extern _dabmp DataBMP;//ä½å›¾å­˜å‚¨å—ï¼Œå°†ç£ç›˜çš„ä½å›¾å…¨éƒ¨å­˜å…¥å†…å­˜
-extern uint32 DataBMPNum;//ä½å›¾æ•°é‡
-//èŠ‚ç‚¹
-extern uint32 sizeLFDB;//å¶èŠ‚ç‚¹æ–‡ä»¶æè¿°å—å ç”¨å­—èŠ‚æ•°
-extern uint32 sizeBFDB;//å†…éƒ¨èŠ‚ç‚¹æ–‡ä»¶æè¿°å—å ç”¨å­—èŠ‚æ•°
-//æ—¥å¿—å—
-extern uint32 addrLB_0;//æ—¥å¿—å—é¦–åœ°å€
-extern uint32 sizeLB;//æ—¥å¿—å—å ç”¨å­—èŠ‚æ•°
-//B+æ ‘ç›¸å…³
-extern uint32 RootAddr;//æ ¹èŠ‚ç‚¹åœ°å€ï¼Œè¯¥èŠ‚ç‚¹å¿…é¡»æ”¾åœ¨æŸä¸ªæ–‡ä»¶æè¿°å—çš„èµ·å§‹å¤„ï¼Œè¿™æ ·æ‰å¯ä»¥è¢«ç´¢å¼•
-extern _lx_info_block _lxinfoblock;//ä¿¡æ¯å—æŒ‡é’ˆ
-extern uint32 mem_lnode_num;//å†…å­˜ä¸­å½“å‰æ‹¥æœ‰çš„å¶èŠ‚ç‚¹èŠ‚ç‚¹æ•°é‡
-extern uint32 mem_bnode_num;//å†…å­˜ä¸­å½“å‰æ‹¥æœ‰çš„å†…éƒ¨èŠ‚ç‚¹æ•°é‡
-//æ ¼å¼åŒ–æ‰€éœ€è¦å‚æ•°
-extern uint32 format_block_size;			//å—é•¿åº¦
-extern uint8 format_unit;					//å•å…ƒå€¼
-extern uint16 format_bytepersec;			//æ‰‡åŒºé•¿åº¦
-extern uint32 format_root;					//æ ¹èŠ‚ç‚¹åœ°å€
+//È«¾Ö±äÁ¿Í·ÎÄ¼ş
+extern _bootloder DiskBOOT;//Ö¸Ïò´Ó´ÅÅÌ¶ÁÈ¡µÄÒıµ¼ÉÈÇø
+//ÏµÍ³»ù´¡±äÁ¿
+extern unsigned char UNIT;//´¢´æUNITÖµ
+extern uint16 BytePerSec;//µ¥¸öÉÈÇøÕ¼ÓÃ×Ö½ÚÊı
+extern uint16 RootEntCnt;//¸ùÄ¿Â¼×î´óÎÄ¼şÊı
+extern uint32 BLOCK_SIZE;//¿éµÄ´óĞ¡
+extern uint32 BLOCK_GROUP_SIZE;//¿é×éÕ¼ÓÃ¿éÊı
+extern uint32 DISK_SIZE;//Ó²ÅÌÈİÁ¿,¿é
+extern uint64 DISK_SIZE_BYTES;//Ó²ÅÌÈİÁ¿£º×Ö½Ú
+//Êı¾İÎ»Í¼
+extern uint32 sizeDAB;//Êı¾İÎ»Í¼Õ¼ÓÃ×Ö½ÚÊı
+extern uint32 BGSize;//¿é×é´óĞ¡£¬block group size
+extern uint64 DAB_0;//0ºÅÎ»Í¼Î»ÖÃ£¬µ¥Î»¿é
+extern _dabmp DataBMP;//Î»Í¼´æ´¢¿é£¬½«´ÅÅÌµÄÎ»Í¼È«²¿´æÈëÄÚ´æ
+extern uint32 DataBMPNum;//Î»Í¼ÊıÁ¿
+//½Úµã
+extern uint32 sizeLFDB;//Ò¶½ÚµãÎÄ¼şÃèÊö¿éÕ¼ÓÃ×Ö½ÚÊı
+extern uint32 sizeBFDB;//ÄÚ²¿½ÚµãÎÄ¼şÃèÊö¿éÕ¼ÓÃ×Ö½ÚÊı
+//ÈÕÖ¾¿é
+extern uint32 addrLB_0;//ÈÕÖ¾¿éÊ×µØÖ·
+extern uint32 sizeLB;//ÈÕÖ¾¿éÕ¼ÓÃ×Ö½ÚÊı
+//B+Ê÷Ïà¹Ø
+extern uint32 RootAddr;//¸ù½ÚµãµØÖ·£¬¸Ã½Úµã±ØĞë·ÅÔÚÄ³¸öÎÄ¼şÃèÊö¿éµÄÆğÊ¼´¦£¬ÕâÑù²Å¿ÉÒÔ±»Ë÷Òı
+extern _lx_info_block _lxinfoblock;//ĞÅÏ¢¿éÖ¸Õë
+extern uint32 mem_lnode_num;//ÄÚ´æÖĞµ±Ç°ÓµÓĞµÄÒ¶½Úµã½ÚµãÊıÁ¿
+extern uint32 mem_bnode_num;//ÄÚ´æÖĞµ±Ç°ÓµÓĞµÄÄÚ²¿½ÚµãÊıÁ¿
+//¸ñÊ½»¯ËùĞèÒª²ÎÊı
+extern uint32 format_block_size;			//¿é³¤¶È
+extern uint8 format_unit;					//µ¥ÔªÖµ
+extern uint16 format_bytepersec;			//ÉÈÇø³¤¶È
+extern uint32 format_root;					//¸ù½ÚµãµØÖ·
 extern uint64 format_root_addr;
-extern uint32 format_backup_root;			//å¤‡ä»½æ ¹èŠ‚ç‚¹åœ°å€
+extern uint32 format_backup_root;			//±¸·İ¸ù½ÚµãµØÖ·
 extern uint64 format_backup_root_addr;
-extern uint32 format_lxinfo;				//lxä¿¡æ¯å—åœ°å€
+extern uint32 format_lxinfo;				//lxĞÅÏ¢¿éµØÖ·
 extern uint64 format_lxinfo_addr;
-extern uint32 format_backup_lxinfo;			//å¤‡ä»½ä¿¡æ¯å—åœ°å€
+extern uint32 format_backup_lxinfo;			//±¸·İĞÅÏ¢¿éµØÖ·
 extern uint64 format_backup_lxinfo_addr;
-extern uint32 format_boot;					//å¼•å¯¼æ‰‡åŒºåœ°å€
+extern uint32 format_boot;					//Òıµ¼ÉÈÇøµØÖ·
 extern uint64 format_boot_addr;
-extern uint32 format_backup_boot;			//å¤‡ä»½å¼•å¯¼æ‰‡åŒºåœ°å€
+extern uint32 format_backup_boot;			//±¸·İÒıµ¼ÉÈÇøµØÖ·
 extern uint64 format_backup_boot_addr;
 
-extern uint32 format_disk_n;				//ç¡¬ç›˜å®¹é‡ï¼Œå•ä½ï¼šå—
-extern uint64 format_disk_size;				//ç¡¬ç›˜å®¹é‡ï¼Œå•ä½ï¼šbyte
-extern uint32 block_group_n;				//å—ç»„å ç”¨å—æ•°ï¼Œå•ä½ï¼šå—
-extern uint64 block_group_size;				//å—ç»„å ç”¨å—æ•°ï¼Œå•ä½ï¼šbyte
-extern uint32 end_block_group_n;			//æœ€åçš„å—ç»„å çš„å—æ•°ï¼Œå•ä½ï¼šå—
-extern uint64 end_block_group_size;			//æœ€åçš„å—ç»„å çš„å—æ•°ï¼Œå•ä½ï¼šbyte
+extern uint32 format_disk_n;				//Ó²ÅÌÈİÁ¿£¬µ¥Î»£º¿é
+extern uint64 format_disk_size;				//Ó²ÅÌÈİÁ¿£¬µ¥Î»£ºbyte
+extern uint32 block_group_n;				//¿é×éÕ¼ÓÃ¿éÊı£¬µ¥Î»£º¿é
+extern uint64 block_group_size;				//¿é×éÕ¼ÓÃ¿éÊı£¬µ¥Î»£ºbyte
+extern uint32 end_block_group_n;			//×îºóµÄ¿é×éÕ¼µÄ¿éÊı£¬µ¥Î»£º¿é
+extern uint64 end_block_group_size;			//×îºóµÄ¿é×éÕ¼µÄ¿éÊı£¬µ¥Î»£ºbyte
 
-//æ–‡ä»¶åˆ†é…å‡½æ•°å˜é‡
-extern char* filenamebuf;//ç”¨äºå‚¨å­˜ä»èŠ‚ç‚¹ä¸­æå‡ºçš„æ–‡ä»¶åï¼Œé¦–å…ˆè¦åˆå§‹åŒ–
-extern int fnb_p;//å‚¨å­˜filenamebufçš„æœ‰æ•ˆé•¿åº¦
-extern FileTreeRoot _file_tree_root;//å‚¨å­˜æ ¹èŠ‚ç‚¹æŒ‡é’ˆ
-extern uint32 _file_tree_lnode0;//æ–‡ä»¶æ ‘çš„ç¬¬ä¸€ä¸ªå¶èŠ‚ç‚¹
+//ÎÄ¼ş·ÖÅäº¯Êı±äÁ¿
+extern char* filenamebuf;//ÓÃÓÚ´¢´æ´Ó½ÚµãÖĞÌá³öµÄÎÄ¼şÃû£¬Ê×ÏÈÒª³õÊ¼»¯
+extern int fnb_p;//´¢´æfilenamebufµÄÓĞĞ§³¤¶È
+extern FileTreeRoot _file_tree_root;//´¢´æ¸ù½ÚµãÖ¸Õë
+extern uint32 _file_tree_lnode0;//ÎÄ¼şÊ÷µÄµÚÒ»¸öÒ¶½Úµã
 
-//åŸºæ•°æ ‘
-extern radix_tree_t* radix_node_ptr;//å‚¨å­˜èŠ‚ç‚¹æŒ‡é’ˆï¼Œå†…å­˜æŒ‡é’ˆå­˜å…¥åŸºæ•°æ ‘å¶èŠ‚ç‚¹ï¼Œç£ç›˜æŒ‡é’ˆä½œä¸ºç´¢å¼•
-//å †æ ˆ
-extern Stack DataBMP_Stack;//ä½å›¾å †æ ˆ
+//»ùÊıÊ÷
+extern radix_tree_t* radix_node_ptr;//´¢´æ½ÚµãÖ¸Õë£¬ÄÚ´æÖ¸Õë´æÈë»ùÊıÊ÷Ò¶½Úµã£¬´ÅÅÌÖ¸Õë×÷ÎªË÷Òı
+//¶ÑÕ»
+extern Stack DataBMP_Stack;//Î»Í¼¶ÑÕ»
 
-//æ–‡ä»¶å¤¹
+//ÎÄ¼ş¼Ğ

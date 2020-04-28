@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include"lxerror.h"
 #pragma pack(1)
 //分区表DPT

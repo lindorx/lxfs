@@ -1,4 +1,4 @@
 GCC=gcc
 
 default:
-	$(GCC) main.c radix_tree.c stack.c lx.c
+	$(GCC) main.c radix_tree.c stack.c lx.c -o lxfs.exe

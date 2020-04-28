@@ -1,9 +1,9 @@
 #include"stack.h"
 
-static int stack_sp;//å †æ ˆæŒ‡é’ˆ
-static int stack_max_size;//å †æ ˆæœ€å¤§å®¹é‡
+static int stack_sp;//¶ÑÕ»Ö¸Õë
+static int stack_max_size;//¶ÑÕ»×î´óÈİÁ¿
 
-//åˆ›å»ºå †æ ˆï¼Œå¹¶è¿”å›å †æ ˆæŒ‡é’ˆ
+//´´½¨¶ÑÕ»£¬²¢·µ»Ø¶ÑÕ»Ö¸Õë
 Stack S_CreateStack(int MaxSize)
 {
 	Stack s = (Stack)malloc(MaxSize * sizeof(S_ElementType));
@@ -12,14 +12,14 @@ Stack S_CreateStack(int MaxSize)
 	return s;
 }
 
-//åˆ¤æ–­å †æ ˆæ˜¯å¦å·²æ»¡
+//ÅĞ¶Ï¶ÑÕ»ÊÇ·ñÒÑÂú
 char S_IsFull(Stack s)
 {
 	if (stack_sp >= stack_max_size) { return 1; }
 	return 0;
 }
 
-//å‹æ ˆ
+//Ñ¹Õ»
 char S_Push(Stack s, S_ElementType x)
 {
 	if (S_IsFull)return 0;
@@ -27,21 +27,21 @@ char S_Push(Stack s, S_ElementType x)
 	return 1;
 }
 
-//åˆ¤æ–­å †æ ˆæ˜¯å¦ä¸ºç©º
+//ÅĞ¶Ï¶ÑÕ»ÊÇ·ñÎª¿Õ
 char S_IsEmpty(Stack s)
 {
 	if (stack_sp <= 0)return 1;
 	return 0;
 }
 
-//å‡ºæ ˆ
-S_ElementType S_Pop(Stack s) 
+//³öÕ»
+S_ElementType S_Pop(Stack s)
 {
 	if (S_IsEmpty)return 0;
 	return s[stack_sp--];
 }
 
-//å…³é—­å †æ ˆ
+//¹Ø±Õ¶ÑÕ»
 void S_CloseStack(Stack s)
 {
 	free(s);
@@ -49,8 +49,8 @@ void S_CloseStack(Stack s)
 	stack_max_size = 0;
 }
 
-//å †æ ˆéå†
-int S_FindStack(S_ElementType n,Stack s)
+//¶ÑÕ»±éÀú
+int S_FindStack(S_ElementType n, Stack s)
 {
 	for (int i = 0; i < stack_sp; ++i) {
 		if (s[i] == n)return i;

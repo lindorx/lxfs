@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include<stdlib.h>
 #define ERR_NOT_FOUND_NUM_IN_STACK -50		//没有在堆栈中找到指定值
 typedef unsigned int S_ElementType;//堆栈值的类型

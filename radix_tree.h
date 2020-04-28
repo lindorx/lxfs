@@ -1,20 +1,21 @@
 #pragma once
 #include<stdlib.h>
 #include<stdio.h>
-#define _RADIX_NDOE_PRINT	//å¦‚æœå®šä¹‰äº†æ­¤å®ï¼Œradix_tree_traversal()å‡½æ•°å°†å‘å±å¹•æ‰“å°éå†ç»“æœ
+//#define _RADIX_NDOE_PRINT	//Èç¹û¶¨ÒåÁË´Ëºê£¬radix_tree_traversal()º¯Êı½«ÏòÆÁÄ»´òÓ¡±éÀú½á¹û
 
 #define MEMPAGE 4096
-#define INIT_POOL_SIZE (MEMPAGE*1)	//åˆå§‹å†…å­˜æ± å¤§å°
-#define RADIX_INSERT_VALUE_OCCUPY -1		//è¯¥èŠ‚ç‚¹å·²è¢«å ç”¨
-#define RADIX_INSERT_VALUE_SAME -2		//æ’å…¥äº†ç›¸åŒçš„å€¼
-#define RADIX_DELETE_ERROR -3			//åˆ é™¤é”™è¯¯
+#define INIT_POOL_SIZE (MEMPAGE*1)	//³õÊ¼ÄÚ´æ³Ø´óĞ¡
+#define RADIX_INSERT_VALUE_OCCUPY -1		//¸Ã½ÚµãÒÑ±»Õ¼ÓÃ
+#define RADIX_INSERT_VALUE_SAME -2		//²åÈëÁËÏàÍ¬µÄÖµ
+#define RADIX_DELETE_ERROR -3			//É¾³ı´íÎó
 typedef unsigned int ptr_t;
 typedef unsigned int uint32;
 
 #define BITS 2
-//è¿”å›keyæŒ‡å®šä½çš„å€¼ï¼Œä½æ•°ç”±BITSæŒ‡å®š
-#define CHECK_BITS(key,pos) ((((unsigned int)(key))<<sizeof(int)*8-(pos+1)*BITS)>>(sizeof(int)*8-BITS))
-//åŸºæ•°æ ‘èŠ‚ç‚¹
+//·µ»ØkeyÖ¸¶¨Î»µÄÖµ£¬Î»ÊıÓÉBITSÖ¸¶¨
+#define CHECK_BITS(key,pos) (((unsigned int)((int)0-(int)1))>>(sizeof(char*)*8-BITS))&((unsigned long)(key)>>(BITS*(unsigned short)(pos)))
+//#define CHECK_BITS(key,pos) ()
+//»ùÊıÊ÷½Úµã
 typedef struct radix_node_t radix_node_t;
 struct radix_node_t {
 	radix_node_t* child[4];
@@ -22,54 +23,54 @@ struct radix_node_t {
 };
 typedef struct radix_leafnode_t {
 	struct radix_leafnode_t* next;
-	uint32 key;//è·¯å¾„
-	ptr_t value;//å€¼
+	uint32 key;//Â·¾¶
+	ptr_t value;//Öµ
 }radix_leafnode_t;
 
-//å†…å­˜æ± ç»“æ„ï¼Œæ”¾åœ¨å†…å­˜æ± çš„å‰æ®µ
+//ÄÚ´æ³Ø½á¹¹£¬·ÅÔÚÄÚ´æ³ØµÄÇ°¶Î
 typedef struct radix_pool {
 	struct radix_pool* next;
 	struct radix_pool* prev;
 	char* start;
 	size_t size;
-}radix_pool, * pool_t;
-//åŸºæ•°æ ‘ç®¡ç†ç»“æ„
+}radix_pool, *pool_t;
+//»ùÊıÊ÷¹ÜÀí½á¹¹
 typedef struct radix_tree_t {
-	//æŒ‡å‘æ ¹èŠ‚ç‚¹
+	//Ö¸Ïò¸ù½Úµã
 	radix_node_t* root;
-	//å†…å­˜æ± æŒ‡é’ˆï¼Œ(ä¸€é¡µå†…å­˜)
+	//ÄÚ´æ³ØÖ¸Õë£¬(Ò»Ò³ÄÚ´æ)
 	pool_t pool;
-	//å‚¨å­˜å·²åˆ†é…ä½†ä¸åœ¨æ ‘ä¸­çš„èŠ‚ç‚¹ï¼ˆåŒå‘é“¾è¡¨ï¼Œè¿™é‡Œå‚¨å­˜å…¶ä¸­çš„ä¸€ä¸ªèŠ‚ç‚¹ï¼‰
+	//´¢´æÒÑ·ÖÅäµ«²»ÔÚÊ÷ÖĞµÄ½Úµã£¨Ë«ÏòÁ´±í£¬ÕâÀï´¢´æÆäÖĞµÄÒ»¸ö½Úµã£©
 	radix_node_t* free;
-	//å¶èŠ‚ç‚¹å†…å­˜æ± 
+	//Ò¶½ÚµãÄÚ´æ³Ø
 	pool_t leafpool;
-	//å‚¨å­˜å·²åˆ†é…ä½†ä¸åœ¨æ ‘ä¸­çš„å¶èŠ‚ç‚¹
+	//´¢´æÒÑ·ÖÅäµ«²»ÔÚÊ÷ÖĞµÄÒ¶½Úµã
 	radix_leafnode_t* lfree;
 }radix_tree_t;
 
-//å†…å­˜æ± æ‰©å¤§å‡½æ•°ï¼Œnumï¼šæ–°å†…å­˜æ± çš„å¤§å°ï¼Œ=-1ä½¿ç”¨é»˜è®¤å€¼,å•ä½ï¼šé¡µ
+//ÄÚ´æ³ØÀ©´óº¯Êı£¬num£ºĞÂÄÚ´æ³ØµÄ´óĞ¡£¬=-1Ê¹ÓÃÄ¬ÈÏÖµ,µ¥Î»£ºÒ³
 pool_t get_new_pool(radix_tree_t* t, int num);
 
-//åˆ›å»ºä¸€ä¸ªèŠ‚ç‚¹ï¼Œä»å†…å­˜æ± ä¸­å–å‡ºå¯ä»¥ä½¿ç”¨çš„èŠ‚ç‚¹
+//´´½¨Ò»¸ö½Úµã£¬´ÓÄÚ´æ³ØÖĞÈ¡³ö¿ÉÒÔÊ¹ÓÃµÄ½Úµã
 radix_node_t* radix_node_alloc(radix_tree_t* t);
 
-//åˆ›å»ºç®¡ç†ç»“æ„
+//´´½¨¹ÜÀí½á¹¹
 radix_tree_t* radix_tree_create();
 
-//æ’å…¥
+//²åÈë
 int radix_tree_insert(radix_tree_t* t, uint32 key, ptr_t value);
 
-//ç”±äºæ’å…¥æ—¶ä¼šåˆ›å»ºå¾ˆå¤šèŠ‚ç‚¹ï¼Œä¸ºäº†æé«˜é€Ÿåº¦è¿™é‡Œåªä¼šåˆ é™¤æœ€åº•å±‚çš„æŒ‡å®šèŠ‚ç‚¹
+//ÓÉÓÚ²åÈëÊ±»á´´½¨ºÜ¶à½Úµã£¬ÎªÁËÌá¸ßËÙ¶ÈÕâÀïÖ»»áÉ¾³ı×îµ×²ãµÄÖ¸¶¨½Úµã
 int radix_tree_delete(radix_tree_t* t, uint32 key);
 
-//æ‰“å°å‡½æ•°ï¼Œä¼šæ‰“å°å‡ºæ‰€æœ‰åº•å±‚èŠ‚ç‚¹çš„é•¿åº¦
+//´òÓ¡º¯Êı£¬»á´òÓ¡³öËùÓĞµ×²ã½ÚµãµÄ³¤¶È
 //void radix_print(radix_node_t* node);
 
-//èŠ‚ç‚¹æŸ¥æ‰¾å‡½æ•°
+//½Úµã²éÕÒº¯Êı
 ptr_t radix_tree_find(radix_tree_t * t, uint32 key);
 pool_t get_new_leafpool(radix_tree_t* t, int num);
 radix_leafnode_t* radix_leafnode_alloc(radix_tree_t* t);
-//éå†å¶èŠ‚ç‚¹ï¼Œè¿”å›å¶èŠ‚ç‚¹æ•°é‡
+//±éÀúÒ¶½Úµã£¬·µ»ØÒ¶½ÚµãÊıÁ¿
 int radix_tree_traversal(radix_tree_t* t);
-//éå†å¶èŠ‚ç‚¹ï¼Œå¹¶æŒ‡å®šæ“ä½œ
+//±éÀúÒ¶½Úµã£¬²¢Ö¸¶¨²Ù×÷
 int radix_tree_traversal_fun(radix_tree_t* t, void(*fun)(uint32, uint32));
