@@ -15,6 +15,7 @@ typedef uint32 ptr_t;
 
 #define ERR_CODE_BASE -16	//错误代码起始值，所有错误代码应小于等于此值
 #define iserrcode(e) ((e)<=ERR_CODE_BASE?TRUE:FALSE)		//e是错误码，则返回ture，否则返回false
+
 //文件函数错误代码
 #define ERR_NODE_NULL -16			//节点指针为空  
 #define ERR_SAME_FILE_NAME -17		//文件名相同冲突
@@ -47,6 +48,10 @@ typedef uint32 ptr_t;
 #define ERR_NODE_DATA_FAIL -44		//节点的数据可能出错
 #define ERR_FILE_NAME_FORMAR_ERROR -45	//文件名格式错误
 #define ERR_FIND_TO_END_LNODE -46		//已到最后一个叶节点
+#define ERR_IRR_DIR_NAME -47		//文件夹名称不规则，即文件夹名称的最后一个字符不是‘/’
+#define ERR_NOT_OPEN_FILE -48		//未打开文件
+#define ERR_FILE_TOO_LARGE -49		//文件过大
+#define ERR_MALLOC_FAULT -50		//malloc()出错
 //错误号对应的字符串
 typedef struct errString {
 	tree_error ernum;

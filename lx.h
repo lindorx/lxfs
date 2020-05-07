@@ -13,6 +13,11 @@
 
 typedef unsigned int Node;//节点指针
 
+extern Stack DataBMP_Stack;	//磁盘位图堆栈
+extern int DataBMP_Stack_sp;
+extern Stack dalloc_BMP;
+extern int dalloc_BMP_sp;
+
 #define BOOTSIZE 512	//引导扇区长度
 #define BASE_YEAR 2019	//基准年
 
@@ -53,6 +58,8 @@ typedef unsigned int Node;//节点指针
 //文件夹
 #define _FLODER 1
 #define _NOT_FLODER 0
+
+#define PGSIZE 4096
 
 //字符串复制函数，到指定字符或者'\0'时终止，目标字符串会包含指定字符，返回复制长度
 size_t strccpy(char *destinin,char *source,int ch);
@@ -140,9 +147,9 @@ int BNodeSearchChild_i(_bn node, const char* str, size_t length);
 //在树中寻找首节点地址（即所有值最小的节点，根据分裂的规则，首节点的地址一旦确定便不会改变）
 uint32 findStartLNode(Node node);
 //文件写入函数
-tree_error FileWrite(const char* filename, size_t namesize, char* data, uint64 datasize, char dpl, char hide, char folder);
+tree_error LX_FileWrite(const char* filename, size_t namesize, char* data, uint64 datasize, char dpl, char hide);
 //文件删除函数
-tree_error FileClear(const char* filename);
+tree_error LX_FileClear(const char* filename);
 //打印文件描述符组描述的内容
 void printFileTable(_fileitems fis);
 //读取根文件目录列表
@@ -271,3 +278,9 @@ int l_found_name_pos(_ln node,const char *fname,int length);
 
 //文件名定位，根据提供的文件名返回节点中第一个大于等于该文件名的描述符组下标，如果该文件名最大，则返回最大值
 int b_found_name_pos(_bn node,const char *fname,int length);
+//写入文件夹
+tree_error _folder_write(const char* path, size_t pathlength, char dpl, char hide);
+//创建文件夹
+tree_error LX_FolderWrite(char* dir, size_t dirsz);
+
+void flush_daBMP();

@@ -98,6 +98,18 @@ typedef struct {
 	byte del : 1;			//=1已删除文件，相当于放入回收站，标记删除，为了保证可以恢复；=1分区删除
 }fileAtt;
 
+#define LX_ATT_DPL0		0	//文件权限0
+#define LX_ATT_DPL1		1	//文件权限1
+#define LX_ATT_DPL2		2	//文件权限2
+#define LX_ATT_DPL3		3	//文件权限3
+#define LX_ATT_EXTNAME	4	
+#define LX_ATT_ISEXT	8
+#define LX_ATT_DATA		16
+#define LX_ATT_ENF		32
+#define LX_ATT_HIDE		64
+#define LX_ATT_DEL		128
+
+
 //文件日期结构
 typedef struct {
 	uint32 s : 6;		//秒
@@ -113,7 +125,10 @@ typedef struct {
 typedef struct {
 	byte ms : 7;			//创建时间的10毫秒位,ms*10=大约的创建时间
 	byte dis : 1;			//=0扩展文件名描述符，=1文件描述符，此项恒等于1
-	fileAtt fatt;			//文件属性
+	union {
+		fileAtt fatt;			//文件属性
+		char att;
+	};
 	char name[FTNAME_SIZE];			//文件名,占用6字节
 	fDate createdate;		//创建日期
 	fDate lastVisitDate;	//最后访问日期

@@ -1,4 +1,5 @@
 #include"lx.h"
+#include"lxstack.h"
 char* filenamebuf;
 int fnb_p = 0;
 _ln mem_start_lnode;
@@ -18,7 +19,11 @@ uint32 BGSize;
 uint64 DAB_0;
 _dabmp DataBMP;
 uint32 DataBMPNum;
-Stack DataBMP_Stack;
+Stack DataBMP_Stack=NULL;	//磁盘位图堆栈
+int DataBMP_Stack_sp = 0;
+
+Stack dalloc_BMP = NULL;
+int dalloc_BMP_sp = 0;
 
 uint32 addrFDB_0;
 uint32 addrFDB_1;
@@ -65,7 +70,7 @@ uint64 end_block_group_size;
 
 _lx_info_block lib;
 _bootloder bootloder512;
-uint32 DataBMP_Stack_sp = 0;
+
 FILE* wdisk;
 FILE* rdisk;
 
@@ -122,6 +127,7 @@ tree_error init_lx()
 	}
 
 	DataBMP_Stack = S_CreateStack(DATABMP_STACK_MAX_SIZE);
+	dalloc_BMP = S_CreateStack(PGSIZE);
 	return TRUE;
 }
 
@@ -423,7 +429,8 @@ tree_error insertBNode(uint32 disknode, _bn node, _extname in, int length, uint3
 	if (in == NULL)length = calcul_en_num(size);
 	if (node->namenum > BNODE_NUM - length) {
 		tree_error err = splitBNode(disknode, node, fname, size);
-		if (err < 0)return err;
+		if (iserrcode(err))
+			return err;
 		return insertBNode(disknode, node, in, length, child, fname, size);
 	}
 
@@ -815,7 +822,8 @@ tree_error mergeBNode(uint32 diskn1, _bn n1, uint32 diskn2, _bn n2)
 	char midname[TEXT_BUF_SIZE];
 	memcpy(midname, str, fnb_p);
 	err = insertBNode(diskn1, n1, NULL, 0, n2->child[0], midname, fnb_p);
-	if (err < 0)return err;
+	if (iserrcode(err))
+		return err;
 
 	n1num = n1->namenum; n2num = n2->namenum;
 	n1->namenum = n1num + n2num;
@@ -843,56 +851,62 @@ tree_error mergeBNode(uint32 diskn1, _bn n1, uint32 diskn2, _bn n2)
 	return err;
 }
 
-
 tree_error deleteLNode(uint32 disknode, _ln node, const char * fname, int length)
 {
 	if (node == NULL) {
-		node = diskPtr_into_LNodePtr(disknode);
-		if (node == NULL)return ERR_NODE_NULL;
+		if ((node= diskPtr_into_LNodePtr(disknode)) == NULL)
+			return ERR_NODE_NULL;
 	}
 	int i, num, pos, temp;
+	//在叶节点中寻找指定文件名
 	num = LNode_FindFileName(node, fname, length);
-	if (num == -1) { pos = 0; num = 0; }
+	if (num == -1) { 
+		pos = 0; num = 0; 
+	}
 	else if (num < 0)return ERR_NOT_FOUND_DELFILE;
-	else{ pos = node->file_off[num]; }
+	else{ 
+		pos = node->file_off[num]; 
+	}
 	temp = LNodeFTNum(&(node->fi[pos]));
 	if (temp == -1)return ERR_NOT_DELETE_FILE;
 	node->file_off_num--;
 	if (num != node->file_off_num) {
-
 		for (i = pos + temp; i < node->finum; ++i) {
 			node->fi[i - temp] = node->fi[i];
 		}
-
 		for (i = num + 1; i < node->file_off_num; ++i) {
 			node->file_off[i - 1] = node->file_off[i] - temp;
 		}
 	}
 	node->finum -= temp;
-	if ((uint32)node->prev == disknode)return 0;
+	if ((uint32)node->prev == disknode)
+		return 0;
 	_ln node1, node2;
 	uint32 diskn1, diskn2;
 
-	if (node->finum > LNODE_NUM / 4) return 0;
+	if (node->finum > LNODE_NUM / 4)
+		return 0;
 
 	node1 = diskPtr_into_LNodePtr((uint32)node->prev);
 	node2 = diskPtr_into_LNodePtr((uint32)node->next);
-	if (node1 == NULL)return 0;
+	if (node1 == NULL)
+		return 0;
 	if (disknode != disk_start_lnode && node1->finum + node->finum < LNODE_NUM - 31) {
 		node1 = NULL;
 		node2 = node;
 		diskn1 = (uint32)node->prev;
 		diskn2 = disknode;
 	}
-	else if (node->next == disk_start_lnode)return 0;
+	else if (node->next == disk_start_lnode)
+		return 0;
 	else if (node2->finum + node->finum < LNODE_NUM - 31) {
 		node1 = node;
 		node2 = NULL;
 		diskn1 = disknode;
 		diskn2 = (uint32)node->next;
 	}
-	else return 0;
-
+	else 
+		return 0;
 	return mergeLNode(diskn1, node1, diskn2, node2);
 }
 //删除指定位置的
@@ -1311,16 +1325,15 @@ tree_error findNode_i(const char* fname, int length, _ln* lnode)
 	do {
 		if (nodetype == LNODE_TYPE) {//叶节点
 			temp = LNode_FindFileName((_ln)node, fname, length);
-			//printf("temp=%d", temp);
-			if (temp < -1) return temp;
-			//fi = (temp == -1) ? 0 : (((_ln)node)->file_off[temp]);//指向找到的文件描述符下标
-			//if (fi == 0)return ERR_NOT_FOUND_FILE_NAME;
+			if (iserrcode(temp))
+				return temp;
 			*lnode = (_ln)node;
 			return temp;
 		}
 		else {//内部节点
 			temp = BNodeSearchChild_i((_bn)node, fname, length);
-			if (temp < 0)return temp;
+			if (iserrcode(temp))
+				return temp;
 			diskptr = ((_bn)node)->child[temp];
 			if (((_bn)node)->childType == CHILD_TYPE_LNODE) {
 				node = (Node)diskPtr_into_LNodePtr(diskptr);
@@ -1427,44 +1440,105 @@ uint32 findStartLNode(Node node)
 	return (uint32)NULL;
 }
 
+//写入文件
+//fname：路径+文件名；namesize：长度；data：数据；datasize：数据大小；dpl：权限；hide：隐藏
 tree_error _file_write(const char* fname, size_t namesize, char* data, uint64 datasize, char dpl, char hide)
 {
-	uint32 pos[16];
-	uint64 fsize[16];
+	uint32 pos[16];//偏移数组
+	uint64 fsize[16];//文件大小
 	int length;
 	if (datasize == 0) {
 		length = 0;
-		pos[0] = 0; fsize[0] = 0;
+		pos[0] = 0; 
+		fsize[0] = 0;
 	}
-	else {
+	else {//获取一组储存空间
 		length = diskAutoAlloc(pos, fsize, 16, datasize);
 		if (length < 0)return length;
 	}
 	tree_error err;
 	fileItems fisbuf[FILE_DES_NUM];
+	//如果正确，err应该得到fisbuf有效元素的数量
 	err = creatFileDes(fisbuf, fname, namesize, fsize, pos, length, dpl, hide, _NO_DELETE, _NOT_FLODER);
-	if (err < 0)return err;
+	if (iserrcode(err))
+		return err;
+	//先将文件信息加入节点
 	err = insertNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, fisbuf, err, fname, namesize);
-	if (err < 0)return err;
+	if (iserrcode(err)) 
+		return err;
+	//最后写数据
 	for (int i = 0; i < length; ++i) {
 		writeData(pos[i] * BLOCK_SIZE, fsize[i], data);
 		data += fsize[i];
 	}
+	flush_daBMP();//更新位图
 	return 0;
 }
+
 //向节点写入文件夹
 tree_error _folder_write(const char* path, size_t pathlength, char dpl, char hide)
 {
 	tree_error err;
 	fileItems fis[FILE_DES_NUM];
+	//创建文件描述符组，返回值应该为正数，否则代表错误
 	err = creatFileDes(fis, path, pathlength, NULL, NULL, 0, dpl, hide, _NO_DELETE, _FLODER);
-	if (err < 0)return err;
+	if (iserrcode(err))
+		return err;
+	//将文件夹插入节点
 	err = insertNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, fis, err, path, pathlength);
-	if (err < 0)return err;
+	if (iserrcode(err))
+		return err;
 	return 0;
 }
 
-tree_error FileWrite(const char* filename, size_t namesize, char* data, uint64 datasize, char dpl, char hide, char folder)
+//写入文件
+//path为路径+文件名
+tree_error LX_FileWrite(const char* filename, size_t namesize, char* data, uint64 datasize, char dpl, char hide)
+{
+	//直接将文件名传入节点
+	if (filename[0] == '/') {
+		filename++;
+		namesize--;
+	}
+	char* f = filename;
+	size_t fsz;
+	tree_error err;
+	_ln node;
+	_fileitems pfi=NULL;
+	//循环检查每一个目录
+	for (;;) {
+		f = strchr(f, '/');
+		if (f == NULL) {//说明已经到最后了，此时的pf等于文件名
+			break;
+		}
+		f++;//令f跳过‘/’
+		fsz = f - filename;//文件夹名长度
+		err = findNode_i(filename, fsz, &node);//寻找目录
+		if (err == ERR_NOT_FOUND_FILE_NAME) {//未找到文件名，需要新建,同时将上层目录的folder属性加一
+			err=_folder_write(filename, fsz, dpl, hide);
+			if (iserrcode(err))
+				return err;
+			//将父目录加一
+			if (pfi != NULL) {//如果存在上层目录，令其folder+1
+				pfi->ft.folder++;
+			}
+			err = findNode_i(filename, fsz, &node);
+			if (iserrcode(err))
+				return err;
+			pfi = &(node->fi[(err == -1) ? 0 : node->file_off[err]]);//保存当前目录的描述符
+		}
+		else if (iserrcode(err))//发生错误
+			return err;
+		else//找到目录名
+			pfi = &(node->fi[(err == -1) ? 0 : node->file_off[err]]);
+	}
+	if(pfi!=NULL)
+		pfi->ft.folder++;
+	return _file_write(filename, namesize, data, datasize, dpl, hide);//将文件名插入节点
+}
+
+//将文件写入
+/*tree_error LX_FileWrite(const char* filename, size_t namesize, char* data, uint64 datasize, char dpl, char hide, char folder)
 {
 	//解析文件名，参数文件名必须包含绝对路径，第一个字符必须为‘/’,如果最后一个字符是‘/’,说明要建立文件夹
 	//文件名中不能出现连续的‘/’字符
@@ -1483,7 +1557,6 @@ tree_error FileWrite(const char* filename, size_t namesize, char* data, uint64 d
 	f = malloc(filenamesize);
 	if (f == NULL)return -1;
 	memcpy(f, filename, filenamesize);
-	
 	//创建目录
 	for (;;) {
 		char *oldf = f;
@@ -1501,45 +1574,63 @@ tree_error FileWrite(const char* filename, size_t namesize, char* data, uint64 d
 				pfi->ft.folder++;
 			}
 			err = findNode_i(filename, dirl, &node);
-			if (err < -1)return err;
+			if (iserrcode(err))
+				return err;
 			pfi = &(node->fi[(err == -1) ? 0 : node->file_off[err]]);
 		}
-		else if (err < -1)return err;
+		else if (iserrcode(err))
+			return err;
 		else
 			pfi = &(node->fi[(err == -1) ? 0 : node->file_off[err]]);
 	}
 	//创建文件
 	err = _file_write(filename, namesize - 1, data, datasize, dpl, hide);
-	if (err < 0)return err;
+	if (iserrcode(err))
+		return err;
 	if (pfi != NULL) {
 		pfi->ft.folder++;
 	}
 	return 0;
-}
-//删除文件或文件夹
-tree_error FileClear(const char* filename)
-{
-	if (filename[0] == '/')//return ERR_FILE_NAME_FORMAR_ERROR;
-		filename++;
-	size_t fl = strlen(filename);
-	int p;
+}*/
 
+//创建文件夹
+/*方法：直接将此路径插入节点即可，如果返回ERR_SAME_FILE_NAME说明该目录已存在*/
+tree_error LX_FolderWrite(const char* path,size_t pathsz)
+{
+	if (path[0] == '/') {
+		pathsz--;
+		path++;
+	}
+	//检查是否有此文件夹名
+	_ln node = NULL;
+	tree_error err;
+	err = findNode_i(path, pathsz, &node);
+	if (err == ERR_NOT_FOUND_FILE_NAME)//将文件夹名称插入
+		err = _folder_write(path, pathsz, 0, 0);
+	else if (iserrcode(err))
+		return err;
+	else
+		return ERR_SAME_FILE_NAME;//文件名冲突
+	return err;
+}
+
+//删除文件或文件夹
+tree_error LX_FileClear(const char* filename)
+{
+	if (filename[0] == '/')
+		filename++;
+	size_t fsz = strlen(filename);
 	_ln node;
-	if (filename[fl - 1] == '/') {//如果是目录，则在删除该目录的同时，需要删除该目录下所有文件
-		p = findNode_i(filename, fl, &node);
-		if (iserrcode(p))return p;
+	tree_error p;
+	//如果要删除的是文件
+	if (filename[fsz - 1] == '/') {
+		p = findNode_i(filename, fsz, &node);
+		if (iserrcode(p))
+			return p;
 		return del_folder(p, &node);
 	}
-	//文件，直接删除
-	return deleteNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, filename, fl);
+	return deleteNode(_file_tree_root.node, (Node)NULL, _file_tree_root.type, filename, fsz);
 }
-//文件读取函数
-//将读取的文件内容信息存入des指向的位置
-/*tree_error FileRead(const char*filename,byte* des)
-{
-
-return 0;
-}*/
 
 void printFileTable(_fileitems fis)
 {
@@ -1650,7 +1741,19 @@ int init_disk(const char* fname)
 {
 	strcpy(_disk_filename, fname);
 	rdisk = fopen(fname, "rb+");
-	if (rdisk == NULL)return -1;
+	if (rdisk == NULL) {//无法打开文件
+		if (errno == 2) {
+			if ((rdisk = fopen(fname, "wb+")) == NULL) {//文件不存在，使用wb+打开文件，这会创建一个空文件
+				goto not_open_file;
+			}
+		}
+		else {
+			not_open_file:
+			printf("read file open fail.error info=%s\n", strerror(errno));
+			return -1;
+		}
+	}
+	fseek(rdisk, 0, SEEK_SET);
 	wdisk = rdisk;
 	return 0;
 }
@@ -1724,6 +1827,7 @@ int printBit(_dabmp dmp, uint32 length)
 	return 0;
 }
 
+//保存数据
 int writeData(uint64 off, uint64 length, void* src)
 {
 	if (src == NULL)return ERR_NODE_NULL;
@@ -1739,7 +1843,6 @@ int writeData(uint64 off, uint64 length, void* src)
 
 int init_format()
 {
-
 	format_unit = bootloder512->Unit;
 	format_bytepersec = bootloder512->BytePerSec;
 	format_block_size = format_unit * format_bytepersec;
@@ -1831,6 +1934,7 @@ int format_lx(const char* fname, int length)
 	return 0;
 }
 
+//自动寻找blocks个数据块，返回数据块位置
 uint32 disk_alloc(uint32 blocks)
 {
 	static uint32 start = 0;
@@ -1845,8 +1949,10 @@ uint32 disk_alloc(uint32 blocks)
 				if (i - j >= blocks)break;
 			}
 			if (i < databmpsize) {
-				setDBMPs(DataBMP, j, blocks, 1);
-				DataBMP_Stack_Push((j / 8) / sizeDAB);//将被改动的位图加入堆栈
+				//将需要修改的位图推入堆栈
+				dalloc_bmp_spush(j, blocks);
+				//setDBMPs(DataBMP, j, blocks, 1);
+				//DataBMP_Stack_Push((j / 8) / sizeDAB);
 				start = i;
 				return j;
 			}
@@ -1860,6 +1966,21 @@ uint32 disk_alloc(uint32 blocks)
 		}
 	}
 	return 0;
+}
+
+//刷新位图，信息会由dalloc_bmp_spush()函数压入堆栈
+//通过弹出堆栈内容进行设置，压栈顺序为块地址、块
+//必须与diskAutoAlloc()配对使用
+void flush_daBMP()
+{
+	uint32 i, blocks;
+	for (; dalloc_BMP_sp > 0; --dalloc_BMP_sp) {
+		blocks = S_Pop(dalloc_BMP);
+		--dalloc_BMP_sp;
+		i = S_Pop(dalloc_BMP);
+		setDBMPs(DataBMP, i, blocks, 1);
+		DataBMP_Stack_Push((i / 8) / sizeDAB);
+	}
 }
 
 int diskAutoAlloc(uint32 diskptr[], uint64 size[], uint32 length, long datasize)
@@ -1890,6 +2011,7 @@ int diskAutoAlloc(uint32 diskptr[], uint64 size[], uint32 length, long datasize)
 	size[i - 1] = size[i - 1] - BLOCK_SIZE + off;
 	return i;
 }
+
 
 uint32 readData(char* des, uint32 length, uint32 blockAddr)
 {
@@ -2011,7 +2133,6 @@ void bmpfile(const char* fname)
 tree_error saveNodePtr(Node node, uint32 diskptr)
 {
 	int err = radix_tree_insert(radix_node_ptr, diskptr, node);
-	if (err < 0)return err;
 	return err;
 }
 
@@ -2077,14 +2198,7 @@ int writeDataBMP()
 	return DataBMP_Stack_sp;
 }
 
-tree_error DataBMP_Stack_Push(uint32 n)
-{
-	int err = S_FindStack((S_ElementType)n, DataBMP_Stack);
-	if (err == ERR_NOT_FOUND_NUM_IN_STACK) {
-		S_Push(DataBMP_Stack, (S_ElementType)n); DataBMP_Stack_sp++;
-	}
-	return 0;
-}
+
 //将所有在内存中被修改的节点回写磁盘
 //如果主函数在操执行中修改了节点，应该退出时使用此函数，否则没有必要使用
 int flushDiskCache()
@@ -2137,7 +2251,7 @@ tree_error del_folder(int off, _ln *node)
 	int i = off < 0 ? 0 : (*node)->file_off[off];//保存偏移数组下标
 	int num = (*node)->fi[i].ft.folder, temp;
 	int j, p = off + 1;//p指向该文件夹内容项
-	for (j = 0; j < num; ++j) {//逐个删除
+	for (j = 0; j < num; ++j) {//逐个删除文件夹下的内容
 		if (p >= (*node)->file_off_num) {//索引超过当前偏移数组，更换下一个节点
 			if ((*node)->next == _file_tree_lnode0)return 0;//查找完成
 			*node = diskPtr_into_LNodePtr((*node)->next);//获取下一个节点的内存地址

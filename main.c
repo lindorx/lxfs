@@ -8,12 +8,16 @@ int init(const char* fname);
 int strbchr(const char *src, int val);
 int cfile_ls(const char *ls);
 int cfile_insert(const char* sourcefile, const char* path);
-
 tree_error cfile_delete(const char* fname);
+//参数处理函数
+int imgctrl(int argc, char *argv[]);
+
 //将字符串中的指定字符进行替换
 //str:源字符串，chr：需要被替换的字符，val：替换字符
 int strrechr(char *str, int chr, int val)
 {
+	if (str == NULL)
+		return 0;
 	int i = 0, n = 0;
 	while (str[i] != '\0') {
 		if (str[i] == chr) {
@@ -27,31 +31,34 @@ int strrechr(char *str, int chr, int val)
 
 /*参数说明：
 img=***，指定镜像
-if=***，将***文件存入镜像中
-path=***,指定写入文件在镜像的路径
-ls=***，打印指定目录的内容，只有ls默认为打印根目录文件
+if=***，指定需要写入的文件
+path=***,指定工作路径
+ls=***，打印指定目录的内容，不指定目录默认为根目录文件
 format，将镜像格式化
-del=***,删除指定的目录或者文件，如果是目录，则要放上'/'
+del=***,删除指定的目录或者文件，如果是目录，最后一个字符必须是‘/’
+mkdir=***，创建目录，目录名必须以‘/’结尾
 */
 int main(int argc, char *argv[])
 {
-	if (argc<2)return 0;//没有参数直接返回
+	if (argc < 2)
+		return 0;//没有参数直接返回
 	int i;
-	char *img = NULL, *ifile = NULL, *ls = NULL, *path = NULL, *del = NULL;
+	char* img = NULL, * ifile = NULL, * ls = NULL, * path = NULL, * del = NULL, * mkdir = NULL;
 	char isformat = FALSE;
-	for (i = 1; i<argc; ++i){
-		char* sss = argv[i];
-		if (!strncmp(argv[i], "img=", 4)){
+	for (i = 1; i < argc; ++i) {
+		//char* sss = argv[i];
+		char sss[] = "mkdir=/123/";
+		if (!strncmp(argv[i], "img=", 4)) {
 			img = &(argv[i][4]);
 		}
-		else if (!strncmp(argv[i], "if=", 3)){
+		else if (!strncmp(argv[i], "if=", 3)) {
 			ifile = &(argv[i][3]);
 		}
-		else if (!strncmp(argv[i], "ls", 2)){
-			if (argv[i][2] == '='){//如果有‘=’，说明指定了路径
+		else if (!strncmp(argv[i], "ls", 2)) {
+			if (argv[i][2] == '=') {//如果有‘=’，说明指定了路径
 				ls = &(argv[i][3]);
 			}
-			else{//否则令第一个字符等于/，指定位根目录
+			else {//否则令第一个字符等于/，指定位根目录
 				argv[i][0] = '/';
 				argv[i][1] = '\0';
 				ls = argv[i];
@@ -60,56 +67,73 @@ int main(int argc, char *argv[])
 		else if (!strncmp(argv[i], "path=", 5)) {
 			path = &(argv[i][5]);
 		}
-		else if (!strncmp(argv[i], "del=", 4)){
+		else if (!strncmp(argv[i], "del=", 4)) {
 			del = &(argv[i][4]);
 		}
-		else if (!strncmp(argv[i], "format", 6)){
+		else if (!strncmp(argv[i], "mkdir=", 6)) {
+			mkdir = &(argv[i][6]);
+		}
+		else if (!strncmp(argv[i], "format", 6)) {
 			//需要确认“format”字符均正确
 			isformat = TRUE;
 		}
 	}
-	if (img == NULL){//缺少镜像文件
+	if (img == NULL) {//缺少镜像文件
 		printf("error: Missing image file!\n");
 		return 0;
 	}
-	if (init(img)>0){//初始化文件系统
+	if (init(img) < 0) {//初始化文件系统
 		printf("error: not open image file:%s\n", img);
 		return 0;
 	}
-	if (isformat){//格式化
+	if (isformat) {//格式化
 		format_disk(img);
 		printf("Image formatting completed.\n");
 		return 0;
 	}
-	else{
-		if (ls != NULL){
+	else {
+		if (ls != NULL) {
 			strrechr(ls, '\\', '/');
 			cfile_ls(ls);
 		}
-		if (ifile != NULL){
+		if (ifile != NULL || path!=NULL) {
 			strrechr(ifile, '\\', '/');
-			cfile_insert(ifile, path);
-			flushDiskCache();
+			strrechr(path, '\\', '/');
+			if(!iserrcode(cfile_insert(ifile, path)))
+				flushDiskCache();
 		}
 		if (del != NULL) {
 			printf("del=%s", del);
 			strrechr(del, '\\', '/');
-			cfile_delete(del);
-			flushDiskCache();
+			if(!iserrcode(cfile_delete(del)))
+				flushDiskCache();
+		}
+		if (mkdir != NULL) {
+			printf("Create File Directory:%s", mkdir);
+			//创建文件夹
+			strrechr(mkdir, '\\', '/');
+			if(!iserrcode(cfile_insert(NULL, mkdir)))
+				flushDiskCache();
 		}
 	}
-	closeLX();
+	closeLX();//关闭工作系统
 	printf("\n");//输出一个空行，以便和上一级分开
 	return 0;
 }
 
+//参数处理函数
+int imgctrl(int argc, char* argv[])
+{
+	return 0;
+}
+
 //文件名处理函数
-int ls_print(const char*str)
+int ls_print(const char* str)
 {
 	return printf("%s\n", str);
-
 }
-int cfile_ls(const char *ls)
+
+int cfile_ls(const char* ls)
 {
 	/*目录的形式为目录名+‘/’，例：test/
 	从第一个叶节点链表开始向后查找，寻找符合目录的描述符，提取出来，然后跳过该描述符设定的子单元数量
@@ -118,7 +142,7 @@ int cfile_ls(const char *ls)
 	_ln lnode = findFirstLNode();
 	uint32 diskaddr = _file_tree_lnode0;
 	int err;
-	if (ls[0] == '/'){//符合路径格式
+	if (ls[0] == '/') {//符合路径格式
 		if (strlen(ls) < 2)//打印根目录
 		{
 			findRootDir(ls_print);
@@ -128,8 +152,9 @@ int cfile_ls(const char *ls)
 			++ls;
 			err = findNode_i(ls, strlen(ls), &node);
 			//printf("err=%d\n", err);
-			if (err < -1)return err;
-			fileListPrint(node, err, 3);
+			if (iserrcode(err))
+				return err;
+			fileListPrint(node, err, 0);
 		}
 	}
 	else {//指定了目录，首先在描述符中找到该目录
@@ -138,19 +163,63 @@ int cfile_ls(const char *ls)
 	return 0;
 }
 //从后向前查找，找到最后一个指定的字符，返回该字符下标，没有则返回-1
-int strbchr(const char *str, int val)
+int strbchr(const char* str, int val)
 {
 	int i, p = -1;
-	for (i = 0; str[i] != '\0'; ++i){
+	for (i = 0; str[i] != '\0'; ++i) {
 		if (str[i] == val)p = i;
 	}
 	return p;
 }
 
-int cfile_insert(const char *sourcefile, const char *path)
+//sourcefile：源文件；path:文件路径和文件名
+int cfile_insert(const char* sourcefile, const char* path)
 {
-	if (sourcefile == NULL&&path != NULL) {
-		return FileWrite(path, strlen(path), NULL, 0, _USER_DPL, _NO_HIDE, _FLODER);
+	//path包含新文件路径或者文件夹路径
+	if (path == NULL)
+		return -1;
+	int sfsize;
+	char* sfdata;
+	//如果path的最后一个字符为‘/’,说明目标为文件夹，否则是文件
+	size_t pathsz = strlen(path);
+	if (path[pathsz - 1] == '/'){//创建文件夹
+		return LX_FolderWrite(path, pathsz);
+	}
+	else {//创建文件
+		//如果源文件为空，说明创建空文件
+		if (sourcefile == NULL) {
+			sfsize = 0;
+			sfdata = NULL;
+		}
+		else{
+			FILE* fin = fopen(sourcefile,"rb");
+			if (fin == NULL) {
+				printf("error: not open input file:%s\n", sourcefile);
+				printf("error info : %s", strerror(errno));
+				return ERR_NOT_OPEN_FILE;
+			}
+			//将文件数据读入缓冲区
+			fseek(fin, 0, SEEK_END);
+			sfsize = ftell(fin);
+			if (sfsize > 1024 * 1024 * 128) {//大于128M
+				printf("error: The file size is over 128M!\n");
+				return ERR_FILE_TOO_LARGE;
+			}
+			sfdata = (char*)malloc(sfsize);
+			if (sfdata == NULL) {
+				return ERR_MALLOC_FAULT;
+			}
+			fseek(fin, 0, SEEK_SET);
+			fread(sfdata, sfsize, 1, fin);
+			fclose(fin);
+		}
+	}
+	//写入节点
+	return LX_FileWrite(path, pathsz, sfdata, sfsize, 0, 0);
+
+
+	/*if (sourcefile == NULL&&path != NULL) {
+		return LX_FolderWrite(path, strlen(path));
 	}
 	FILE * fin;
 	fin = fopen(sourcefile, "rb");
@@ -205,17 +274,63 @@ int cfile_insert(const char *sourcefile, const char *path)
 			}
 		}
 		else {
-			return FileWrite(path, pathl, fdata, fsize, _USER_DPL, _NO_HIDE, _NOT_FLODER);
+			return LX_FileWrite(path, pathl, fdata, fsize, _USER_DPL, _NO_HIDE);
 
 		}
 	}
-	return FileWrite(filename, strlen(filename), fdata, fsize, _USER_DPL, _NO_HIDE, _NOT_FLODER);
+	return LX_FileWrite(filename, strlen(filename), fdata, fsize, _USER_DPL, _NO_HIDE);
+
+*/
 }
 
 tree_error cfile_delete(const char* fname)
 {
-	return FileClear(fname);
+	return LX_FileClear(fname);
 }
+
+void format_disk(const char * img)
+{
+	DPT d[4] = { 0 };
+	_bootloder bl = creatBootLoder(
+		"LINDORX ", HD_SEC, HD_PAGE / HD_SEC,
+		32, 1000, 0x80,
+		8, 8, 32,
+		HD_SIZE / HD_PAGE, 0, 0x12345678,
+		"by-lindorx0", "systemlx", 0,
+		1, BNODE_SIZE / HD_PAGE, LNODE_SIZE / HD_PAGE,
+		2, 1, d);
+	format_lx(img, strlen(img));
+	creatRootFile();
+	closeLX();
+}
+
+int init(const char * fname)
+{
+	int err;
+	err = init_disk(fname);
+	if (err<0)
+		return err;
+	init_lx();
+	if (err = creat_tree(CREATE_TREE_DISK)<0)return 1;
+	return 0;
+}
+
+
+//创建文件夹
+/*方法：在节点中插入文件名即可*/
+/*tree_error cfile_mkdir(char *md)
+{
+	if (md == NULL)
+		return 0;
+	//检查文件名是否合格
+	size_t mdl = strlen(md);
+	if (md[mdl - 1] != '/')
+		return ERR_IRR_DIR_NAME;
+	//将文件名写入文件
+	tree_error err= LX_FileWrite(md, mdl, NULL, 0, 0, 0, 1);
+	return err;
+}
+*/
 /*
 int cfile(const char *ls,const char* fname,int ctrl)
 {
@@ -338,30 +453,3 @@ if(err<0){printf("error=%d , delete3: %s\n",err,fname);}
 closeLX();
 }
 */
-void format_disk(const char * img)
-{
-	DPT d[4] = { 0 };
-	_bootloder bl = creatBootLoder(
-		"LINDORX ", HD_SEC, HD_PAGE / HD_SEC,
-		32, 1000, 0x80,
-		8, 8, 32,
-		HD_SIZE / HD_PAGE, 0, 0x12345678,
-		"by-lindorx0", "systemlx", 0,
-		1, BNODE_SIZE / HD_PAGE, LNODE_SIZE / HD_PAGE,
-		2, 1, d);
-	format_lx(img, strlen(img));
-	creatRootFile();
-	closeLX();
-}
-
-int init(const char * fname)
-{
-	int err;
-	err = init_disk(fname);
-	if (err<0)return err;
-	init_lx();
-	if (err = creat_tree(CREATE_TREE_DISK)<0)return 1;
-	return 0;
-}
-
-
